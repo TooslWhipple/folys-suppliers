@@ -6,13 +6,14 @@ import { Title } from "@/components/Title/Title";
 import { TabFilters } from "@/components/TabFilters/TabFilters";
 import { TableCrud } from "@/components/TableCrud/TableCrud";
 import type { TabOption } from "@/components/TabFilters/TabFilters";
-import type { Column, RowAction } from "@/components/TableCrud/TableCrud";
+import type { Column } from "@/components/TableCrud/TableCrud";
 import type { StatusChipVariant } from "@/components/StatusChip/StatusChip";
 import { Stack } from "@mui/material";
 import { StatsCardGroup, StatsCardData } from "@/components/StatsCard/StatsCard";
 import { useApi } from "@/hooks/useApi";
 import { ordersService, Order, PaginatedResponse, OrderStats } from "@/services/orders.service";
 import { useNotification } from "@/contexts/NotificationContext";
+import { useRouter } from "next/navigation";
 
 type Pedido = {
   id: string;
@@ -82,6 +83,7 @@ const mapOrderToPedido = (order: Order): Pedido => {
 
 export default function PedidosPage() {
   const { showInfo } = useNotification();
+  const router = useRouter();
   const { execute, loading: apiLoading, data: ordersData } = useApi<PaginatedResponse<Order>>();
   const { execute: executeStats, data: statsData } = useApi<OrderStats>();
 
@@ -118,6 +120,7 @@ export default function PedidosPage() {
   const sourceData = useMemo(() => {
     return ordersData?.rows?.map(mapOrderToPedido) || [];
   }, [ordersData]);
+  console.log("🚀 ~ PedidosPage ~ sourceData:", sourceData)
 
   const filteredPedidos = useMemo(() => {
     let filtered: Pedido[] = sourceData;
@@ -138,6 +141,7 @@ export default function PedidosPage() {
 
     return filtered;
   }, [activeTab, searchValue, sourceData]);
+  console.log("🚀 ~ PedidosPage ~ filteredPedidos:", filteredPedidos)
 
   const paginatedPedidos = useMemo(() => {
     const start = page * rowsPerPage;
@@ -190,18 +194,9 @@ export default function PedidosPage() {
     },
   ];
 
-  const actions: RowAction<Pedido>[] = [
-    {
-      id: "ver",
-      label: "Ver detalle",
-      onClick: (row) => showInfo(`Ver detalle del pedido ${row.pedido}`),
-    },
-    {
-      id: "descargar",
-      label: "Descargar PDF",
-      onClick: (row) => showInfo(`Descargando PDF del pedido ${row.pedido}`),
-    },
-  ];
+  const handleRowClick = (row: Pedido) => {
+    router.push(`/pedidos/${row.id}`);
+  };
 
   const tabs = STATUS_TABS.map((t) => ({
     ...t,
@@ -242,13 +237,12 @@ export default function PedidosPage() {
           showSearch
           searchValue={searchValue}
           onSearchChange={setSearchValue}
-          searchPlaceholder="Buscar por pedido o fecha"
+          searchPlaceholder="Buscar"
         />
 
         <TableCrud
           columns={columns}
           rows={paginatedPedidos}
-          actions={actions}
           loading={apiLoading}
           rowKey="id"
           page={page}
@@ -256,6 +250,7 @@ export default function PedidosPage() {
           totalRows={ordersData?.total || 0}
           onPageChange={setPage}
           onRowsPerPageChange={setRowsPerPage}
+          onRowClick={handleRowClick}
           emptyMessage="No hay pedidos"
         />
       </Stack>

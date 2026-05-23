@@ -129,7 +129,6 @@ export default function DashboardPage() {
               rowsPerPage={5}
               totalRows={facturasPendientes.length}
               emptyMessage="No hay facturas pendientes"
-              hideRowsPerPageSelect
             />
           </TableCard>
 
@@ -152,7 +151,6 @@ export default function DashboardPage() {
               rowsPerPage={5}
               totalRows={pedidosPendientes.length}
               emptyMessage="No hay pedidos pendientes"
-              hideRowsPerPageSelect
             />
           </TableCard>
         </MainSection>

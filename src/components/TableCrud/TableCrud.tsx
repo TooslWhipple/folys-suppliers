@@ -1,7 +1,5 @@
-"use client";
-
 import { useState } from "react";
-import { Box, Button, Skeleton, Table, TableBody, TableRow, TableCell, TableFooter, Typography } from "@mui/material";
+import { Button, Skeleton, Table, TableBody, Typography, TablePagination } from "@mui/material";
 import { MoreVert as MoreVertIcon } from "@mui/icons-material";
 import numeral from "numeral";
 import {
@@ -18,7 +16,6 @@ import {
   ActionsButton,
   StyledMenu,
   StyledMenuItem,
-  StyledTablePagination,
   EmptyStateContainer,
   StickyHeaderCell,
   StickyCell,
@@ -86,6 +83,7 @@ export interface RowAction<T> {
   icon?: React.ReactNode;
   onClick: (row: T) => void;
   color?: "inherit" | "error" | "primary" | "secondary";
+  permission?: string;
   disabled?: boolean | ((row: T) => boolean);
 }
 
@@ -103,8 +101,12 @@ interface TableCrudProps<T> {
   onRowsPerPageChange?: (rowsPerPage: number) => void;
   rowsPerPageOptions?: number[];
   onRowClick?: (row: T) => void;
-  hideRowsPerPageSelect?: boolean;
 }
+
+// Mock permissions hook - replace with actual implementation when available
+const usePermissions = () => ({
+  hasPermission: (_permission?: string) => true,
+});
 
 export function TableCrud<T>({
   columns,
@@ -120,10 +122,14 @@ export function TableCrud<T>({
   onRowsPerPageChange,
   rowsPerPageOptions = [10, 25, 50],
   onRowClick,
-  hideRowsPerPageSelect = false,
 }: TableCrudProps<T>) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedRow, setSelectedRow] = useState<T | null>(null);
+  const { hasPermission } = usePermissions();
+  const visibleActions = actions?.filter((action) => {
+    if (!action.permission) return true;
+    return hasPermission(action.permission);
+  });
 
   const getColumnWidth = (column: Column<T>): number => {
     if (column.size) {
@@ -288,8 +294,9 @@ export function TableCrud<T>({
       cellStyle.width = maxWidth;
     }
 
-    const cellKey = String(column.id);
-    const cellProps: any = {
+    const cellProps: React.ComponentProps<typeof StyledTableCell> & {
+      position?: Column<T>["stickyPosition"];
+    } = {
       align: column.align ?? "left",
       style: cellStyle,
       title: column.truncate ? String(value ?? "") : undefined,
@@ -301,14 +308,14 @@ export function TableCrud<T>({
     }
 
     return (
-      <CellComponent key={cellKey} {...cellProps}>
+      <CellComponent key={String(column.id)} {...cellProps}>
         {formattedValue}
       </CellComponent>
     );
   };
 
   const total = totalRows ?? rows?.length ?? 0;
-  const hasActions = actions && actions.length > 0;
+  const hasActions = visibleActions && visibleActions.length > 0;
 
   const renderSkeletonRows = () => {
     const skeletonRows = Array.from({ length: rowsPerPage }, (_, index) => index);
@@ -418,26 +425,39 @@ export function TableCrud<T>({
               ))
             )}
           </TableBody>
-          {total > 0 && (
-            <TableFooter>
-              <TableRow>
-                <StyledTablePagination
-                  rowsPerPageOptions={hideRowsPerPageSelect ? [] : rowsPerPageOptions}
-                  count={total}
-                  rowsPerPage={rowsPerPage}
-                  page={page}
-                  onPageChange={handleChangePage}
-                  onRowsPerPageChange={hideRowsPerPageSelect ? undefined : handleChangeRowsPerPage}
-                  labelRowsPerPage={hideRowsPerPageSelect ? "" : "Filas por página:"}
-                  labelDisplayedRows={({ from, to, count }) =>
-                    `${from}-${to} de ${count !== -1 ? count : `más de ${to}`}`
-                  }
-                />
-              </TableRow>
-            </TableFooter>
-          )}
         </Table>
       </StyledTableContainer>
+
+      {total > 0 && (
+        <TablePagination
+          component="div"
+          rowsPerPageOptions={rowsPerPageOptions}
+          count={total}
+          rowsPerPage={rowsPerPage}
+          page={page}
+          onPageChange={handleChangePage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+          labelRowsPerPage="Filas por página:"
+          labelDisplayedRows={({ from, to, count }: { from: number; to: number; count: number }) =>
+            `${from}-${to} de ${count !== -1 ? count : `más de ${to}`}`
+          }
+          sx={{
+            borderTop: "1px solid #e0e0e0",
+            overflow: "hidden",
+            display: "flex",
+            justifyContent: "flex-end",
+            "& .MuiTablePagination-toolbar": {
+              minHeight: 52,
+              flexWrap: "wrap",
+              justifyContent: "flex-end",
+              padding: "0 16px",
+            },
+            "& .MuiTablePagination-spacer": {
+              display: "none",
+            },
+          }}
+        />
+      )}
 
       <StyledMenu
         anchorEl={anchorEl}
@@ -452,7 +472,7 @@ export function TableCrud<T>({
           horizontal: "right",
         }}
       >
-        {actions?.map((action) => {
+        {visibleActions?.map((action) => {
           const isDisabled =
             typeof action.disabled === "function" && selectedRow
               ? action.disabled(selectedRow)
