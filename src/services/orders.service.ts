@@ -53,7 +53,32 @@ export interface OrderFull {
   client: null;
   requested_by_user: null;
   order_items: OrderItemFull[];
-  order_deliveries: unknown[];
+  order_deliveries: OrderDelivery[];
+}
+
+export interface OrderDelivery {
+  id: number;
+  order_id: number;
+  delivery_date: string;
+  delivery_method_id: number | null;
+  delivery_method?: DeliveryMethod | null;
+  received_by: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string | null;
+  deleted_at: string | null;
+  order_delivery_items: OrderDeliveryItem[];
+}
+
+export interface OrderDeliveryItem {
+  id: number;
+  order_delivery_id: number;
+  order_item_id: number;
+  delivered_quantity: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string | null;
+  deleted_at: string | null;
 }
 
 export interface Order {
@@ -85,6 +110,44 @@ export interface GetOrdersParams {
   page?: number;
   limit?: number;
   status?: string;
+}
+
+export interface UpdateOrderItemData {
+  itemId: number;
+  requestedQuantity: number;
+  deliveryDate?: string;
+  deliveryMethodId?: number;
+}
+
+export interface UpdateOrderData {
+  items: UpdateOrderItemData[];
+}
+
+export interface Invoice {
+  id: number;
+  orderId: number;
+  subtotal: string;
+  iva: string;
+  total: string;
+  pdfUrl: string | null;
+  xmlUrl: string | null;
+  status: string;
+  createdAt: string;
+}
+
+export interface CreateInvoiceData {
+  subtotal: string;
+  iva: string;
+  total: string;
+  pdfBase64?: string;
+  xmlBase64?: string;
+}
+
+export interface DeliveryMethod {
+  id: number;
+  code: string;
+  name: string;
+  description: string | null;
 }
 
 export const ordersService = {
@@ -146,6 +209,56 @@ export const ordersService = {
       errorCode: string | null;
     }>(`/orders/${id}/full`);
 
+    return response.data;
+  },
+
+  /**
+   * Update order items (quantities and delivery dates)
+   * @param orderId - Order ID
+   * @param data - Order update data
+   */
+  async updateOrder(orderId: number, data: UpdateOrderData): Promise<{ success: boolean; message: string }> {
+    const response = await api.put<{
+      success: boolean;
+      data: { success: boolean; message: string };
+      message?: string;
+    }>(`/supplier-portal/orders/${orderId}`, data);
+    return response.data;
+  },
+
+  /**
+   * Get invoices for an order
+   * @param orderId - Order ID
+   */
+  async getOrderInvoices(orderId: number): Promise<Invoice[]> {
+    const response = await api.get<{
+      success: boolean;
+      data: Invoice[];
+      message?: string;
+    }>(`/supplier-portal/orders/${orderId}/invoices`);
+    return response.data;
+  },
+
+  /**
+   * Create a new invoice for an order
+   * @param orderId - Order ID
+   * @param data - Invoice data
+   */
+  async createInvoice(orderId: number, data: CreateInvoiceData): Promise<Invoice> {
+    const response = await api.post<{
+      success: boolean;
+      data: Invoice;
+      message?: string;
+    }>(`/supplier-portal/orders/${orderId}/invoices`, data);
+    return response.data;
+  },
+
+  async getDeliveryMethods(): Promise<DeliveryMethod[]> {
+    const response = await api.get<{
+      success: boolean;
+      data: DeliveryMethod[];
+      message?: string;
+    }>('/supplier-portal/delivery-methods');
     return response.data;
   },
 };

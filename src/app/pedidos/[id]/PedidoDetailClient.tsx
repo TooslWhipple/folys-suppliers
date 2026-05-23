@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useApi } from "@/hooks/useApi";
-import { ordersService, OrderFull, OrderItemFull } from "@/services/orders.service";
+import { ordersService, OrderFull, OrderItemFull, DeliveryMethod } from "@/services/orders.service";
 import { DeliveryDatePicker, formatShortDate } from "@/components/DeliveryDatePicker/DeliveryDatePicker";
 import { AddFacturaDrawer, FacturaFormData } from "@/components/AddFacturaDrawer/AddFacturaDrawer";
 import {
@@ -44,9 +44,11 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
   const [hasChanges, setHasChanges] = useState(false);
   const [pickerItemId, setPickerItemId] = useState<number | null>(null);
   const [deliveryDates, setDeliveryDates] = useState<Record<number, Date>>({});
+  const [deliveryMethodIds, setDeliveryMethodIds] = useState<Record<number, number>>({});
   const [activeTab, setActiveTab] = useState<"articulos" | "facturas">("articulos");
   const [addFacturaOpen, setAddFacturaOpen] = useState(false);
   const [facturas, setFacturas] = useState<FacturaFormData[]>([]);
+  const [availableDeliveryMethods, setAvailableDeliveryMethods] = useState<DeliveryMethod[]>([]);
 
   const loadOrder = async () => {
     try {
@@ -67,14 +69,61 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId]);
 
-  // Sync items when order data changes
+  // Load delivery methods on mount
+  useEffect(() => {
+    ordersService.getDeliveryMethods()
+      .then(methods => setAvailableDeliveryMethods(methods))
+      .catch(() => {
+        // Fall back to empty array - component will use defaults
+        setAvailableDeliveryMethods([]);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sync items and delivery data when order data changes
   useEffect(() => {
     if (order?.order_items) {
       // eslint-disable-next-line
       setItems(order.order_items);
     }
+    // Load saved delivery dates and methods from order_deliveries
+    if (order?.order_deliveries && order.order_deliveries.length > 0) {
+      const dates: Record<number, Date> = {};
+      const methods: Record<number, number> = {};
+      order.order_deliveries.forEach(delivery => {
+        // Find the order_item_id from order_delivery_items
+        if (delivery.order_delivery_items && delivery.order_delivery_items.length > 0) {
+          delivery.order_delivery_items.forEach(item => {
+            dates[item.order_item_id] = new Date(delivery.delivery_date);
+            if (delivery.delivery_method_id) {
+              methods[item.order_item_id] = delivery.delivery_method_id;
+            }
+          });
+        }
+      });
+      setDeliveryDates(dates);
+      setDeliveryMethodIds(methods);
+    }
     // eslint-disable-next-line
-  }, [order?.order_items]);
+  }, [order?.order_items, order?.order_deliveries]);
+
+  // Load invoices when switching to facturas tab
+  useEffect(() => {
+    if (activeTab === "facturas" && order) {
+      ordersService.getOrderInvoices(orderId).then((data) => {
+        setFacturas(data.map((inv) => ({
+          subtotal: inv.subtotal,
+          iva: inv.iva,
+          total: inv.total,
+          pdfFile: null,
+          xmlFile: null,
+        })));
+      }).catch(() => {
+        // Silently fail - will show empty state
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, order, orderId]);
 
   const handleBack = () => {
     router.push("/pedidos");
@@ -122,6 +171,70 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
       )
     );
     setHasChanges(true);
+  };
+
+  const handleUpdateData = async () => {
+    try {
+      // Prepare items with delivery dates and methods
+      const updatedItems = items.map((item) => ({
+        itemId: item.id,
+        requestedQuantity: item.requested_quantity,
+        deliveryDate: deliveryDates[item.id]?.toISOString(),
+        deliveryMethodId: deliveryMethodIds[item.id],
+      }));
+
+      await ordersService.updateOrder(orderId, { items: updatedItems });
+
+      // Reload order to get fresh data
+      await loadOrder();
+      setHasChanges(false);
+      setDeliveryDates({}); // Clear local delivery dates after save
+      setDeliveryMethodIds({}); // Clear local delivery method IDs after save
+
+      // Show success notification
+      alert("Datos actualizados exitosamente");
+    } catch {
+      alert("Error al actualizar los datos");
+    }
+  };
+
+  const handleDiscardChanges = () => {
+    if (order?.order_items) {
+      setItems(order.order_items);
+      setDeliveryDates({});
+      setDeliveryMethodIds({});
+      setHasChanges(false);
+    }
+    // Navigate back to orders list
+    router.push("/pedidos");
+  };
+
+  const handleAddFactura = async (data: FacturaFormData) => {
+    try {
+      await ordersService.createInvoice(orderId, {
+        subtotal: data.subtotal,
+        iva: data.iva,
+        total: data.total,
+        // pdfBase64: ..., // TODO: Handle file upload
+        // xmlBase64: ...,
+      });
+
+      // Refresh invoices
+      const updatedInvoices = await ordersService.getOrderInvoices(orderId);
+      setFacturas(
+        updatedInvoices.map((inv) => ({
+          subtotal: inv.subtotal,
+          iva: inv.iva,
+          total: inv.total,
+          pdfFile: null,
+          xmlFile: null,
+        }))
+      );
+
+      setAddFacturaOpen(false);
+    } catch {
+      alert("Error al agregar factura");
+    }
   };
 
   if (loading) {
@@ -177,7 +290,7 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
           <Box sx={{ display: "flex", gap: 1.5 }}>
             <Button
               variant="outlined"
-              onClick={() => { if (order?.order_items) { setItems(order.order_items); setHasChanges(false); } }}
+              onClick={handleDiscardChanges}
               sx={{
                 borderColor: "#d0d5dd",
                 color: "#344054",
@@ -194,6 +307,7 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
             </Button>
             <Button
               variant="contained"
+              onClick={handleUpdateData}
               sx={{
                 bgcolor: "#1570EF",
                 textTransform: "none",
@@ -373,7 +487,7 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
                         }}
                       >
                         <Typography variant="body2" sx={{ fontSize: "0.875rem", color: deliveryDates[item.id] ? "#1570EF" : "#98a2b3", flex: 1 }}>
-                          {deliveryDates[item.id] ? formatShortDate(deliveryDates[item.id]) : "Seleccionar"}
+                          {deliveryDates[item.id] ? `${formatShortDate(deliveryDates[item.id])} (${availableDeliveryMethods.find(m => m.id === deliveryMethodIds[item.id])?.name || "sin método"})` : "Seleccionar"}
                         </Typography>
                         <CalendarToday sx={{ fontSize: 16, color: deliveryDates[item.id] ? "#1570EF" : "#667085", flexShrink: 0 }} />
                       </Box>
@@ -467,9 +581,12 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
             open={pickerItemId !== null}
             onClose={() => setPickerItemId(null)}
             selectedDate={pickerItemId !== null ? (deliveryDates[pickerItemId] ?? null) : null}
-            onSelect={(date) => {
+            deliveryMethods={availableDeliveryMethods}
+            selectedMethodId={pickerItemId !== null ? (deliveryMethodIds[pickerItemId] ?? null) : null}
+            onSelect={(date, methodId) => {
               if (pickerItemId !== null) {
                 setDeliveryDates(prev => ({ ...prev, [pickerItemId]: date }));
+                setDeliveryMethodIds(prev => ({ ...prev, [pickerItemId]: methodId }));
                 setHasChanges(true);
                 setPickerItemId(null);
               }
@@ -480,7 +597,7 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
           <AddFacturaDrawer
             open={addFacturaOpen}
             onClose={() => setAddFacturaOpen(false)}
-            onSubmit={(data) => setFacturas(prev => [...prev, data])}
+            onSubmit={handleAddFactura}
           />
 
           {/* Summary */}

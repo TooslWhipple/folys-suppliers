@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -26,16 +26,18 @@ const MONTH_NAMES = [
 type DayAvailability = "available" | "limited" | "unavailable";
 
 interface DeliveryMethod {
-  id: string;
-  label: string;
-  description: string;
+  id: number;
+  code: string;
+  name: string;
+  description: string | null;
 }
 
-const DELIVERY_METHODS: DeliveryMethod[] = [
-  { id: "rabon", label: "Camión rígido - Rabón", description: "Camión chico de 1 eje" },
-  { id: "torton", label: "Camión rígido - Tortón", description: "Camión chico de 2 ejes" },
-  { id: "articulado53", label: "Camión articulado - 53 pies", description: "Camión grande de caja de 53 pies" },
-  { id: "articulado48", label: "Camión articulado - 48 pies", description: "Camión grande de caja de 48 pies" },
+// Default methods as fallback
+const DEFAULT_DELIVERY_METHODS: DeliveryMethod[] = [
+  { id: 1, code: "rabon", name: "Camión rígido - Rabón", description: "Camión chico de 1 eje" },
+  { id: 2, code: "torton", name: "Camión rígido - Tortón", description: "Camión chico de 2 ejes" },
+  { id: 3, code: "articulado53", name: "Camión articulado - 53 pies", description: "Camión grande de caja de 53 pies" },
+  { id: 4, code: "articulado48", name: "Camión articulado - 48 pies", description: "Camión grande de caja de 48 pies" },
 ];
 
 function getDayAvailability(date: Date): DayAvailability {
@@ -78,8 +80,10 @@ function formatShortDate(date: Date): string {
 interface DeliveryDatePickerProps {
   open: boolean;
   onClose: () => void;
-  onSelect: (date: Date, method: string) => void;
+  onSelect: (date: Date, methodId: number) => void;
   selectedDate?: Date | null;
+  selectedMethodId?: number | null;
+  deliveryMethods?: DeliveryMethod[];
 }
 
 export function DeliveryDatePicker({
@@ -87,13 +91,33 @@ export function DeliveryDatePicker({
   onClose,
   onSelect,
   selectedDate,
+  selectedMethodId: selectedMethodIdProp,
+  deliveryMethods: externalMethods,
 }: DeliveryDatePickerProps) {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [hovered, setHovered] = useState<Date | null>(null);
   const [internalDate, setInternalDate] = useState<Date | null>(selectedDate ?? null);
-  const [selectedMethod, setSelectedMethod] = useState<string>(DELIVERY_METHODS[0].id);
+  const deliveryMethods = externalMethods ?? DEFAULT_DELIVERY_METHODS;
+  const [selectedMethodId, setSelectedMethodId] = useState<number>(
+    selectedMethodIdProp ?? deliveryMethods[0]?.id ?? 1
+  );
+
+  // Sync state with props when drawer opens
+  useEffect(() => {
+    if (open) {
+      const dateToShow = selectedDate ?? today;
+      setInternalDate(selectedDate ?? null);
+      setViewYear(dateToShow.getFullYear());
+      setViewMonth(dateToShow.getMonth());
+      setSelectedMethodId(
+        selectedMethodIdProp !== undefined && selectedMethodIdProp !== null
+          ? selectedMethodIdProp
+          : deliveryMethods[0]?.id ?? 1
+      );
+    }
+  }, [open, selectedDate, selectedMethodIdProp, deliveryMethods]);
 
   const calendarDays = getCalendarDays(viewYear, viewMonth);
 
@@ -139,7 +163,7 @@ export function DeliveryDatePicker({
 
   const handleConfirm = () => {
     if (internalDate) {
-      onSelect(internalDate, selectedMethod);
+      onSelect(internalDate, selectedMethodId);
       onClose();
     }
   };
@@ -396,12 +420,12 @@ export function DeliveryDatePicker({
                   Forma de entrega
                 </Typography>
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                  {DELIVERY_METHODS.map(method => {
-                    const isChosen = selectedMethod === method.id;
+                  {deliveryMethods.map(method => {
+                    const isChosen = selectedMethodId === method.id;
                     return (
                       <Box
-                        key={method.id}
-                        onClick={() => setSelectedMethod(method.id)}
+                        key={method.code}
+                        onClick={() => setSelectedMethodId(method.id)}
                         sx={{
                           display: "flex",
                           alignItems: "flex-start",
@@ -444,7 +468,7 @@ export function DeliveryDatePicker({
                         </Box>
                         <Box>
                           <Typography sx={{ fontSize: "0.8125rem", fontWeight: 600, color: "#101828", lineHeight: 1.3 }}>
-                            {method.label}
+                            {method.name}
                           </Typography>
                           <Typography sx={{ fontSize: "0.75rem", color: "#667085", mt: 0.25 }}>
                             {method.description}
