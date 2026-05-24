@@ -139,8 +139,8 @@ export interface CreateInvoiceData {
   subtotal: string;
   iva: string;
   total: string;
-  pdfBase64?: string;
-  xmlBase64?: string;
+  pdfFile?: File | null;
+  xmlFile?: File | null;
 }
 
 export interface DeliveryMethod {
@@ -245,11 +245,23 @@ export const ordersService = {
    * @param data - Invoice data
    */
   async createInvoice(orderId: number, data: CreateInvoiceData): Promise<Invoice> {
+    const formData = new FormData();
+    formData.append('subtotal', data.subtotal);
+    formData.append('iva', data.iva);
+    formData.append('total', data.total);
+
+    if (data.pdfFile) {
+      formData.append('pdf', data.pdfFile);
+    }
+    if (data.xmlFile) {
+      formData.append('xml', data.xmlFile);
+    }
+
     const response = await api.post<{
       success: boolean;
       data: Invoice;
       message?: string;
-    }>(`/supplier-portal/orders/${orderId}/invoices`, data);
+    }>(`/supplier-portal/orders/${orderId}/invoices`, formData);
     return response.data;
   },
 

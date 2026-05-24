@@ -215,8 +215,8 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
         subtotal: data.subtotal,
         iva: data.iva,
         total: data.total,
-        // pdfBase64: ..., // TODO: Handle file upload
-        // xmlBase64: ...,
+        pdfFile: data.pdfFile,
+        xmlFile: data.xmlFile,
       });
 
       // Refresh invoices
@@ -226,6 +226,8 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
           subtotal: inv.subtotal,
           iva: inv.iva,
           total: inv.total,
+          pdfUrl: inv.pdfUrl,
+          xmlUrl: inv.xmlUrl,
           pdfFile: null,
           xmlFile: null,
         }))
@@ -518,10 +520,11 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
               <>
                 <Paper elevation={0} sx={{ overflow: "hidden", border: "1px solid #e4e7ec", borderRadius: 2 }}>
                   {/* Table header */}
-                  <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 2, px: 3, py: 1.5, borderBottom: "1px solid #e4e7ec" }}>
+                  <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 2, px: 3, py: 1.5, borderBottom: "1px solid #e4e7ec" }}>
                     <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8125rem" }}>Fecha</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8125rem" }}>Pedido</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8125rem" }}>Estatus</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8125rem" }}>Archivos</Typography>
                   </Box>
                   {/* Table rows */}
                   {facturas.length === 0 ? (
@@ -535,7 +538,7 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
                       <Box
                         key={i}
                         sx={{
-                          display: "grid", gridTemplateColumns: "1fr 1fr 1fr",
+                          display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr",
                           gap: 2, px: 3, py: 1.75, alignItems: "center",
                           borderBottom: "1px solid #f2f4f7", bgcolor: "white",
                           "&:last-child": { borderBottom: "none" },
@@ -550,6 +553,23 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
                         <Typography variant="body2" sx={{ fontSize: "0.875rem", color: "#17B26A", fontWeight: 500 }}>
                           Pagado
                         </Typography>
+                        <Box sx={{ display: "flex", gap: 1 }}>
+                          {f.pdfUrl && (
+                            <a href={f.pdfUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#1570EF", fontSize: "0.75rem" }}>
+                              PDF
+                            </a>
+                          )}
+                          {f.xmlUrl && (
+                            <a href={f.xmlUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#1570EF", fontSize: "0.75rem" }}>
+                              XML
+                            </a>
+                          )}
+                          {!f.pdfUrl && !f.xmlUrl && (
+                            <Typography variant="body2" sx={{ fontSize: "0.75rem", color: "#98a2b3" }}>
+                              Sin archivos
+                            </Typography>
+                          )}
+                        </Box>
                       </Box>
                     ))
                   )}

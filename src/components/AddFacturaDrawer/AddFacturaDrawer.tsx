@@ -18,6 +18,8 @@ export interface FacturaFormData {
   total: string;
   pdfFile: File | null;
   xmlFile: File | null;
+  pdfUrl?: string | null;
+  xmlUrl?: string | null;
 }
 
 interface AddFacturaDrawerProps {
