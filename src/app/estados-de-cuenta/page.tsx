@@ -62,7 +62,7 @@ const MainCard = styled(Paper)({
   overflow: "hidden",
 });
 
-const THeaderRow = styled(Box)<{ col?: string }>(({ col = DCOL }) => ({
+const THeaderRow = styled(Box, { shouldForwardProp: (prop) => prop !== "col" })<{ col?: string }>(({ col = DCOL }) => ({
   display: "grid",
   gridTemplateColumns: col,
   gap: "16px",
@@ -70,7 +70,7 @@ const THeaderRow = styled(Box)<{ col?: string }>(({ col = DCOL }) => ({
   borderBottom: `1px solid ${colors.border}`,
 }));
 
-const TDataRow = styled(Box)<{ col?: string; clickable?: boolean }>(({ col = DCOL, clickable }) => ({
+const TDataRow = styled(Box, { shouldForwardProp: (prop) => prop !== "clickable" && prop !== "col" })<{ col?: string; clickable?: boolean }>(({ col = DCOL, clickable }) => ({
   display: "grid",
   gridTemplateColumns: col,
   gap: "16px",
