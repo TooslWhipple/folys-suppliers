@@ -1,7 +1,7 @@
 "use client";
 
 import numeral from "numeral";
-import { Grid, Stack, Typography } from "@mui/material";
+import { Box, Grid, Stack, Typography } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { colors } from "@/lib/theme";
@@ -45,6 +45,7 @@ export function StatsCard({
   label,
   value,
   comparison,
+  icon,
   isCurrency = false,
 }: StatsCardProps) {
   const formatValue = (val: number): string => {
@@ -69,7 +70,23 @@ export function StatsCard({
 
   return (
     <CardContainer>
-      <Typography variant="subtitle1" sx={{ color: colors.text.secondary, mb: 1 }}>
+      {icon && (
+        <Box
+          sx={{
+            width: 40,
+            height: 40,
+            borderRadius: 2,
+            bgcolor: "#EFF8FF",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            mb: 1.5,
+          }}
+        >
+          {icon}
+        </Box>
+      )}
+      <Typography variant="subtitle1" sx={{ color: colors.text.secondary, mb: 0.5 }}>
         {label}
       </Typography>
       <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
@@ -105,6 +122,7 @@ export function StatsCardGroup({ cards }: StatsCardGroupProps) {
             label={card.label}
             value={card.value}
             comparison={card.comparison}
+            icon={card.icon}
             isCurrency={card.isCurrency}
           />
         </Grid>

@@ -2,14 +2,14 @@
 
 import { Box, Typography, Paper, Button } from "@mui/material";
 import { styled } from "@mui/material/styles";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, FileText, Wrench, DollarSign } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { StatsCardGroup } from "@/components/StatsCard/StatsCard";
+import { StatsCardGroup, type StatsCardData } from "@/components/StatsCard/StatsCard";
 import { TableCrud } from "@/components/TableCrud/TableCrud";
 import { ActivitySidebar } from "@/components/ActivitySidebar/ActivitySidebar";
-import { proveedorData, statsData, facturasPendientes, pedidosPendientes } from "@/mocks/data";
+import { proveedorData, facturasPendientes, pedidosPendientes } from "@/mocks/data";
 import { colors } from "@/lib/theme";
-import type { Column, RowAction } from "@/components/TableCrud/TableCrud";
+import type { Column } from "@/components/TableCrud/TableCrud";
 import type { StatusChipVariant } from "@/components/StatusChip/StatusChip";
 
 const DashboardContainer = styled(Box)({
@@ -36,6 +36,7 @@ const TableCard = styled(Paper)({
   backgroundColor: colors.background.sidebar,
   borderRadius: "16px",
   border: `1px solid ${colors.border}`,
+  boxShadow: "none",
   overflow: "hidden",
 });
 
@@ -68,20 +69,48 @@ const STATUS_VARIANTS: Record<string, StatusChipVariant> = {
   Pagado: "success",
 };
 
+const statsCards: StatsCardData[] = [
+  {
+    id: "1",
+    label: "Total de cobros pendientes",
+    value: 870369.42,
+    isCurrency: true,
+    icon: <FileText size={20} color="#1570EF" strokeWidth={1.5} />,
+  },
+  {
+    id: "2",
+    label: "Cargos a proveedor",
+    value: 25980.0,
+    isCurrency: true,
+    icon: <Wrench size={20} color="#1570EF" strokeWidth={1.5} />,
+  },
+  {
+    id: "3",
+    label: "Total a cobrar",
+    value: 844389.42,
+    isCurrency: true,
+    icon: <DollarSign size={20} color="#1570EF" strokeWidth={1.5} />,
+  },
+];
+
 const facturaColumns: Column<Factura>[] = [
   { id: "fecha", label: "Fecha", size: "md" },
-  { id: "pedido", label: "Pedido", size: "sm" },
+  { id: "descripcion", label: "Descripción", size: "lg" },
   { id: "estatus", label: "Estatus", type: "chip", size: "sm", chipVariantMap: STATUS_VARIANTS },
   { id: "total", label: "Total", type: "currency", size: "md", align: "right" },
 ];
 
-const facturaActions: RowAction<Factura>[] = [
-  { id: "ver", label: "Ver detalle", onClick: (row) => console.log("Ver factura", row.pedido) },
-  { id: "descargar", label: "Descargar PDF", onClick: (row) => console.log("Descargar factura", row.pedido) },
-];
-
 const pedidoColumns: Column<Pedido>[] = [
-  { id: "pedido", label: "Pedido", size: "sm" },
+  {
+    id: "pedido",
+    label: "Pedido",
+    size: "sm",
+    format: (value) => (
+      <Box component="span" sx={{ color: "#98A2B3", fontSize: "0.875rem" }}>
+        {String(value)}
+      </Box>
+    ),
+  },
   { id: "fecha", label: "Fecha", size: "md" },
   { id: "articulosSolicitados", label: "Artículos solicitados", type: "number", size: "md" },
   { id: "estatus", label: "Estatus", type: "chip", size: "sm", chipVariantMap: STATUS_VARIANTS },
@@ -89,26 +118,21 @@ const pedidoColumns: Column<Pedido>[] = [
   { id: "total", label: "Total", type: "currency", size: "md", align: "right" },
 ];
 
-const pedidoActions: RowAction<Pedido>[] = [
-  { id: "ver", label: "Ver detalle", onClick: (row) => console.log("Ver pedido", row.pedido) },
-  { id: "descargar", label: "Descargar PDF", onClick: (row) => console.log("Descargar pedido", row.pedido) },
-];
-
 export default function DashboardPage() {
   return (
     <MainLayout>
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="overline" sx={{ color: colors.sidebar.textSelected, fontWeight: 600 }}>
+          DASHBOARD
+        </Typography>
+        <Typography variant="h4" sx={{ fontWeight: 700, mt: 0.5 }}>
+          {proveedorData.nombre}
+        </Typography>
+      </Box>
+
       <DashboardContainer>
         <MainSection>
-          <Box>
-            <Typography variant="overline" sx={{ color: colors.sidebar.textSelected, fontWeight: 600 }}>
-              DASHBOARD
-            </Typography>
-            <Typography variant="h4" sx={{ fontWeight: 700, mt: 0.5 }}>
-              {proveedorData.nombre}
-            </Typography>
-          </Box>
-
-          <StatsCardGroup cards={statsData} />
+          <StatsCardGroup cards={statsCards} />
 
           <TableCard>
             <Box sx={{ p: 3, pb: 2 }}>
@@ -122,12 +146,10 @@ export default function DashboardPage() {
             <TableCrud
               columns={facturaColumns}
               rows={facturasPendientes}
-              actions={facturaActions}
               loading={false}
               rowKey="id"
-              page={0}
-              rowsPerPage={5}
-              totalRows={facturasPendientes.length}
+              hidePagination
+              noBorder
               emptyMessage="No hay facturas pendientes"
             />
           </TableCard>
@@ -144,12 +166,10 @@ export default function DashboardPage() {
             <TableCrud
               columns={pedidoColumns}
               rows={pedidosPendientes}
-              actions={pedidoActions}
               loading={false}
               rowKey="id"
-              page={0}
-              rowsPerPage={5}
-              totalRows={pedidosPendientes.length}
+              hidePagination
+              noBorder
               emptyMessage="No hay pedidos pendientes"
             />
           </TableCard>

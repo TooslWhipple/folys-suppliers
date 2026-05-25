@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { Box, Typography, Grid, Paper, Stack, Menu, MenuItem, Drawer, IconButton, Divider } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { ComposedChart, Bar, Line, XAxis, ResponsiveContainer } from "recharts";
@@ -9,12 +9,10 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Title } from "@/components/Title/Title";
 import { TabFilters } from "@/components/TabFilters/TabFilters";
 import { colors } from "@/lib/theme";
-import { useApi } from "@/hooks/useApi";
-import { catalogService, CatalogItem, PaginatedResponse } from "@/services/catalog.service";
-import { useNotification } from "@/contexts/NotificationContext";
+import { catalogoArticulos, type ArticuloCatalogo } from "@/mocks/data";
 import type { TabOption } from "@/components/TabFilters/TabFilters";
 
-type Articulo = CatalogItem;
+type Articulo = ArticuloCatalogo;
 
 type FilterType = "mas-vendidos" | "menos-vendidos";
 type PeriodType = "ultimo-mes" | "ultimo-ano" | "mes-actual";
@@ -29,6 +27,7 @@ const ProductCard = styled(Paper)({
   backgroundColor: colors.background.sidebar,
   borderRadius: "12px",
   border: `1px solid ${colors.border}`,
+  boxShadow: "none",
   padding: "16px",
   display: "flex",
   gap: "16px",
@@ -75,7 +74,7 @@ function MiniChart({ data }: MiniChartProps) {
     <Box sx={{ width: 280, height: 100 }}>
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
-          <Bar dataKey="enviados" fill="#DBEAFE" radius={[3, 3, 0, 0]} barSize={30} />
+          <Bar dataKey="enviados" fill="#BFDBFE" radius={[3, 3, 0, 0]} barSize={30} />
           <Line
             type="monotone"
             dataKey="enviados"
@@ -133,7 +132,7 @@ function ProductItem({ articulo, onClick }: ProductItemProps) {
       {/* Middle: Product Name, SKU, Units, Stock, Stats */}
       <Box sx={{ display: "flex", flexDirection: "column", gap: 1, flex: 1, minWidth: 0 }}>
         {/* Product Name */}
-        <Typography variant="body1" sx={{ fontWeight: 700, color: colors.text.primary, lineHeight: 1.3, textAlign: "center" }}>
+        <Typography variant="body1" sx={{ fontWeight: 700, color: colors.text.primary, lineHeight: 1.3 }}>
           {articulo.nombre}
         </Typography>
 
@@ -156,7 +155,7 @@ function ProductItem({ articulo, onClick }: ProductItemProps) {
 
         {/* Stats Row */}
         <Box sx={{ display: "flex", justifyContent: "space-between", mt: 1.5 }}>
-          <Box sx={{ textAlign: "center", flex: 1 }}>
+          <Box sx={{ flex: 1 }}>
             <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", mb: 0.5 }}>
               Enviados Ult. año
             </Typography>
@@ -164,7 +163,7 @@ function ProductItem({ articulo, onClick }: ProductItemProps) {
               {articulo.enviadosUltAno}
             </Typography>
           </Box>
-          <Box sx={{ textAlign: "center", flex: 1 }}>
+          <Box sx={{ flex: 1 }}>
             <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", mb: 0.5 }}>
               Enviados Ult. mes
             </Typography>
@@ -172,7 +171,7 @@ function ProductItem({ articulo, onClick }: ProductItemProps) {
               {articulo.enviadosUltMes}
             </Typography>
           </Box>
-          <Box sx={{ textAlign: "center", flex: 1 }}>
+          <Box sx={{ flex: 1 }}>
             <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", mb: 0.5 }}>
               Enviados mes actual
             </Typography>
@@ -199,27 +198,6 @@ export default function CatalogoPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Articulo | null>(null);
 
-  const { execute, loading, data: catalogData } = useApi<PaginatedResponse<CatalogItem>>();
-
-  // Load catalog data from API
-  const loadCatalog = useCallback(async () => {
-    await execute(
-      () =>
-        catalogService.getCatalog({
-          page: 1,
-          limit: 50,
-          search: searchValue.trim() || undefined,
-          status: activeTab,
-        }),
-      { showErrorNotification: true }
-    );
-  }, [execute, searchValue, activeTab]);
-
-  // Initial load and when filters change
-  useEffect(() => {
-    loadCatalog();
-  }, [loadCatalog]);
-
   const handleProductClick = (articulo: Articulo) => {
     setSelectedProduct(articulo);
     setDrawerOpen(true);
@@ -231,9 +209,15 @@ export default function CatalogoPage() {
   };
 
   const filteredData = useMemo(() => {
-    let data = catalogData?.rows || [];
+    let data = catalogoArticulos.filter((a) => {
+      const matchesTab = activeTab === "all" || a.estatus === activeTab;
+      const matchesSearch =
+        !searchValue.trim() ||
+        a.nombre.toLowerCase().includes(searchValue.toLowerCase()) ||
+        a.sku.toLowerCase().includes(searchValue.toLowerCase());
+      return matchesTab && matchesSearch;
+    });
 
-    // Sort by filter type
     if (filterType === "mas-vendidos") {
       data = [...data].sort((a, b) => b.enviadosMesActual - a.enviadosMesActual);
     } else {
@@ -241,7 +225,7 @@ export default function CatalogoPage() {
     }
 
     return data;
-  }, [catalogData, filterType]);
+  }, [activeTab, searchValue, filterType]);
 
   const tabs = STATUS_TABS.map((t) => ({
     ...t,
@@ -372,8 +356,7 @@ const InfoCard = styled(Box)({
   backgroundColor: colors.background.sidebar,
   borderRadius: "12px",
   border: `1px solid ${colors.border}`,
-  padding: "16px",
-  textAlign: "center",
+  padding: "12px 16px",
 });
 
 function ProductDrawer({ open, onClose, articulo }: ProductDrawerProps) {
@@ -381,225 +364,181 @@ function ProductDrawer({ open, onClose, articulo }: ProductDrawerProps) {
 
   const hasGoodMovement = articulo.enviadosMesActual > 30;
 
+  const existenciasItems = [
+    { label: "Exis. inicio de año", value: "12" },
+    { label: "Exis. inicio de mes", value: "32" },
+    { label: "Exis. a disponible", value: "21" },
+    { label: "Exis. por recibir", value: "12" },
+  ];
+
+  const ventasItems = [
+    { label: "Ventas en el año", value: "210" },
+    { label: "Ventas en el mes ant.", value: "31" },
+    { label: "Ventas en el mes", value: "14" },
+    { label: "Exis. por recibir", value: "12" },
+  ];
+
   return (
     <Drawer
       anchor="right"
       open={open}
       onClose={onClose}
+      slotProps={{
+        paper: {
+          sx: {
+            borderRadius: "16px",
+            m: "16px",
+            height: "calc(100% - 32px)",
+            width: { xs: "calc(100vw - 32px)", sm: 520 },
+            boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+          },
+        },
+      }}
     >
       <Box
         sx={{
-          width: { xs: "100%", sm: 500, md: 600 },
           backgroundColor: colors.background.sidebar,
           height: "100%",
-          borderRadius: "16px 0 0 16px",
+          overflowY: "auto",
+          display: "flex",
+          flexDirection: "column",
         }}
         role="presentation"
-        onClick={onClose}
-        onKeyDown={onClose}
       >
-        {/* Header */}
-        <Box sx={{ p: 3, pb: 2 }}>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 2 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Box
-              sx={{
-                width: 12,
-                height: 12,
-                borderRadius: "50%",
-                backgroundColor: hasGoodMovement ? "#22C55E" : "#F97316",
-              }}
-            />
-            <Typography variant="body2" sx={{ color: hasGoodMovement ? "#22C55E" : "#F97316", fontWeight: 600 }}>
-              {hasGoodMovement ? "Buen movimiento" : "Bajo movimiento"}
-            </Typography>
-          </Box>
-          <IconButton onClick={onClose} size="small">
-            <X size={20} />
+        {/* Top bar: X left, badge right */}
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", px: 2.5, pt: 2.5, pb: 1 }}>
+          <IconButton
+            onClick={onClose}
+            size="small"
+            sx={{ border: `1px solid ${colors.border}`, borderRadius: "8px", p: "4px" }}
+          >
+            <X size={18} />
           </IconButton>
-        </Box>
-
-        {/* Product Image */}
-        <Box
-          component="img"
-          src={articulo.imagen}
-          alt={articulo.nombre}
-          sx={{
-            width: 80,
-            height: 80,
-            borderRadius: "8px",
-            objectFit: "cover",
-            backgroundColor: colors.background.main,
-            mb: 2,
-          }}
-          onError={(e) => {
-            (e.target as HTMLImageElement).style.display = "none";
-          }}
-        />
-
-        {/* Product Name */}
-        <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
-          {articulo.nombre}
-        </Typography>
-
-        {/* SKU */}
-        <Typography variant="body2" sx={{ color: colors.text.secondary, mb: 0.5 }}>
-          {articulo.sku}
-        </Typography>
-
-        {/* Units + Stock */}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            {articulo.unidades} unidades
-          </Typography>
-          <StockIndicator status={articulo.unidadesStatus}>
-            <div style={{ opacity: 1 }} />
-            <div style={{ opacity: articulo.unidadesStatus === "critical" ? 0.3 : 1 }} />
-            <div style={{ opacity: articulo.unidadesStatus === "good" ? 1 : 0.3 }} />
-          </StockIndicator>
-        </Box>
-
-        {/* Last Purchase */}
-        <Typography variant="caption" sx={{ color: colors.text.secondary }}>
-          Última compra: 25 de Octubre, 2025
-        </Typography>
-      </Box>
-
-      <Divider sx={{ borderColor: colors.border }} />
-
-      {/* Chart Section */}
-      <Box sx={{ p: 3 }}>
-        {/* Legend */}
-        <Box sx={{ display: "flex", gap: 3, mb: 2 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            <Box sx={{ width: 12, height: 12, borderRadius: "2px", backgroundColor: "#F97316" }} />
-            <Typography variant="caption" sx={{ color: colors.text.secondary }}>
-              Existencias
-            </Typography>
-          </Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            <Box sx={{ width: 12, height: 4, borderRadius: "1px", backgroundColor: "#3B82F6" }} />
-            <Typography variant="caption" sx={{ color: colors.text.secondary }}>
-              Ventas
-            </Typography>
+          <Box
+            sx={{
+              px: 2,
+              py: 0.5,
+              borderRadius: "20px",
+              bgcolor: hasGoodMovement ? "#DCFCE7" : "#FFF7ED",
+              color: hasGoodMovement ? "#16A34A" : "#EA580C",
+              fontSize: "0.8125rem",
+              fontWeight: 600,
+            }}
+          >
+            {hasGoodMovement ? "Buen movimiento" : "Bajo movimiento"}
           </Box>
         </Box>
 
-        {/* Large Chart */}
-        <Box sx={{ width: "100%", height: 200, mb: 3 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={articulo.ventasMensuales} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
-              <Bar dataKey="enviados" fill="#93C5FD" radius={[4, 4, 0, 0]} barSize={40} />
-              <Line
-                type="monotone"
-                dataKey="enviados"
-                stroke="#F97316"
-                strokeWidth={3}
-                dot={{ r: 4, fill: "#F97316" }}
-              />
-              <XAxis
-                dataKey="mes"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 12, fill: colors.text.secondary }}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
+        {/* Product info left + image right */}
+        <Box sx={{ px: 2.5, pt: 1, pb: 2.5, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 2 }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5, lineHeight: 1.3 }}>
+              {articulo.nombre}
+            </Typography>
+            <Typography variant="body2" sx={{ color: colors.text.secondary, mb: 1 }}>
+              {articulo.sku}
+            </Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                {articulo.unidades} unidades
+              </Typography>
+              <StockIndicator status={articulo.unidadesStatus}>
+                <div style={{ opacity: 1 }} />
+                <div style={{ opacity: articulo.unidadesStatus === "critical" ? 0.3 : 1 }} />
+                <div style={{ opacity: articulo.unidadesStatus === "good" ? 1 : 0.3 }} />
+              </StockIndicator>
+            </Box>
+            <Typography variant="caption" sx={{ color: colors.text.secondary }}>
+              Última compra: 12 de Julio, 2025
+            </Typography>
+          </Box>
+
+          {/* Product image — top right */}
+          <Box
+            sx={{
+              width: 80,
+              height: 80,
+              borderRadius: "8px",
+              bgcolor: "#F3F4F6",
+              border: `1px solid ${colors.border}`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              overflow: "hidden",
+            }}
+          >
+            <Typography variant="caption" sx={{ color: colors.text.secondary }}>IMG</Typography>
+          </Box>
         </Box>
 
-        {/* Existencias Section */}
-        <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
-          Existencias
-        </Typography>
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid size={{ xs: 6 }}>
-            <InfoCard>
-              <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", mb: 0.5 }}>
-                Exis. inicio de año
-              </Typography>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                12
-              </Typography>
-            </InfoCard>
-          </Grid>
-          <Grid size={{ xs: 6 }}>
-            <InfoCard>
-              <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", mb: 0.5 }}>
-                Exis. inicio de mes
-              </Typography>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                32
-              </Typography>
-            </InfoCard>
-          </Grid>
-          <Grid size={{ xs: 6 }}>
-            <InfoCard>
-              <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", mb: 0.5 }}>
-                Exis. a disponible
-              </Typography>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                21
-              </Typography>
-            </InfoCard>
-          </Grid>
-          <Grid size={{ xs: 6 }}>
-            <InfoCard>
-              <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", mb: 0.5 }}>
-                Exis. por recibir
-              </Typography>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                12
-              </Typography>
-            </InfoCard>
-          </Grid>
-        </Grid>
+        <Divider sx={{ borderColor: colors.border }} />
 
-        {/* Ventas Section */}
-        <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
-          Ventas
-        </Typography>
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 6 }}>
-            <InfoCard>
-              <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", mb: 0.5 }}>
-                Ventas en el año
-              </Typography>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                210
-              </Typography>
-            </InfoCard>
+        {/* Chart + stats */}
+        <Box sx={{ px: 2.5, py: 2.5, flex: 1 }}>
+          {/* Legend */}
+          <Box sx={{ display: "flex", gap: 3, mb: 2 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+              <Box sx={{ width: 20, height: 3, borderRadius: "2px", bgcolor: "#F97316" }} />
+              <Typography variant="caption" sx={{ color: colors.text.secondary }}>Existencias</Typography>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+              <Box sx={{ width: 12, height: 12, borderRadius: "3px", bgcolor: "#BFDBFE" }} />
+              <Typography variant="caption" sx={{ color: colors.text.secondary }}>Ventas</Typography>
+            </Box>
+          </Box>
+
+          {/* Chart */}
+          <Box sx={{ width: "100%", height: 220, mb: 3 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={articulo.ventasMensuales} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
+                <Bar dataKey="enviados" fill="#BFDBFE" radius={[4, 4, 0, 0]} barSize={40} />
+                <Line
+                  type="monotone"
+                  dataKey="enviados"
+                  stroke="#F97316"
+                  strokeWidth={2.5}
+                  dot={{ r: 3, fill: "#F97316", strokeWidth: 0 }}
+                />
+                <XAxis
+                  dataKey="mes"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 12, fill: colors.text.secondary }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </Box>
+
+          {/* Existencias */}
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1.5 }}>Existencias</Typography>
+          <Grid container spacing={1.5} sx={{ mb: 3 }}>
+            {existenciasItems.map((item) => (
+              <Grid key={item.label} size={{ xs: 3 }}>
+                <InfoCard>
+                  <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", mb: 0.5 }}>
+                    {item.label}
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{item.value}</Typography>
+                </InfoCard>
+              </Grid>
+            ))}
           </Grid>
-          <Grid size={{ xs: 6 }}>
-            <InfoCard>
-              <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", mb: 0.5 }}>
-                Ventas en el mes ant.
-              </Typography>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                31
-              </Typography>
-            </InfoCard>
+
+          {/* Ventas */}
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1.5 }}>Ventas</Typography>
+          <Grid container spacing={1.5}>
+            {ventasItems.map((item) => (
+              <Grid key={item.label} size={{ xs: 3 }}>
+                <InfoCard>
+                  <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", mb: 0.5 }}>
+                    {item.label}
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{item.value}</Typography>
+                </InfoCard>
+              </Grid>
+            ))}
           </Grid>
-          <Grid size={{ xs: 6 }}>
-            <InfoCard>
-              <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", mb: 0.5 }}>
-                Ventas en el mes
-              </Typography>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                14
-              </Typography>
-            </InfoCard>
-          </Grid>
-          <Grid size={{ xs: 6 }}>
-            <InfoCard>
-              <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", mb: 0.5 }}>
-                Exis. por recibir
-              </Typography>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                12
-              </Typography>
-            </InfoCard>
-          </Grid>
-        </Grid>
         </Box>
       </Box>
     </Drawer>

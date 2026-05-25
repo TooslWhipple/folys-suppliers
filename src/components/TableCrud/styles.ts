@@ -29,20 +29,20 @@ export const StyledTableContainer = styled(TableContainer)({
 });
 
 export const StyledTableHead = styled(TableHead)({
-  backgroundColor: colors.background.main,
+  backgroundColor: "transparent",
 });
 
 export const StyledHeaderCell = styled(TableCell)(({ theme }) => ({
-  fontWeight: 600,
-  fontSize: 14,
-  color: "#232325",
+  fontWeight: 500,
+  fontSize: 13,
+  color: "#667085",
   borderBottom: `1px solid ${colors.border}`,
   padding: "12px 16px",
   whiteSpace: "nowrap",
-  backgroundColor: colors.background.main,
+  backgroundColor: "transparent",
   [theme.breakpoints.down("sm")]: {
     padding: "10px 12px",
-    fontSize: 13,
+    fontSize: 12,
   },
 }));
 

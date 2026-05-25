@@ -23,6 +23,7 @@ import {
   Handshake,
   BookOpen,
   FileText,
+  Receipt,
   Menu,
 } from "lucide-react";
 import { SIDEBAR_WIDTH, colors } from "@/lib/theme";
@@ -136,9 +137,10 @@ const navItems: NavItem[] = [
   { label: "Dashboard", path: "/", icon: <LayoutDashboard size={ICON_SIZE} /> },
   { label: "Pedidos", path: "/pedidos", icon: <Truck size={ICON_SIZE} /> },
   { label: "Mercancía dañada", path: "/mercancia-danada", icon: <PackageX size={ICON_SIZE} /> },
-  { label: "Solicitudes de relaciones", path: "/solicitudes-relaciones", icon: <Handshake size={ICON_SIZE} /> },
+  { label: "Solicitudes de refacciones", path: "/solicitudes-refacciones", icon: <Handshake size={ICON_SIZE} /> },
   { label: "Catálogo de artículos", path: "/catalogo", icon: <BookOpen size={ICON_SIZE} /> },
   { label: "Facturas", path: "/facturas", icon: <FileText size={ICON_SIZE} /> },
+  { label: "Estados de cuenta", path: "/estados-de-cuenta", icon: <Receipt size={ICON_SIZE} /> },
 ];
 
 interface SidebarProps {

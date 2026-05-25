@@ -101,12 +101,9 @@ interface TableCrudProps<T> {
   onRowsPerPageChange?: (rowsPerPage: number) => void;
   rowsPerPageOptions?: number[];
   onRowClick?: (row: T) => void;
+  hidePagination?: boolean;
+  noBorder?: boolean;
 }
-
-// Mock permissions hook - replace with actual implementation when available
-const usePermissions = () => ({
-  hasPermission: (_permission?: string) => true,
-});
 
 export function TableCrud<T>({
   columns,
@@ -122,14 +119,16 @@ export function TableCrud<T>({
   onRowsPerPageChange,
   rowsPerPageOptions = [10, 25, 50],
   onRowClick,
+  hidePagination = false,
+  noBorder = false,
 }: TableCrudProps<T>) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedRow, setSelectedRow] = useState<T | null>(null);
-  const { hasPermission } = usePermissions();
-  const visibleActions = actions?.filter((action) => {
-    if (!action.permission) return true;
-    return hasPermission(action.permission);
-  });
+  const visibleActions = actions;
+
+  const wrapperSx = noBorder
+    ? { border: "none", borderRadius: 0, backgroundColor: "transparent", padding: "0 24px" }
+    : undefined;
 
   const getColumnWidth = (column: Column<T>): number => {
     if (column.size) {
@@ -317,6 +316,7 @@ export function TableCrud<T>({
   const total = totalRows ?? rows?.length ?? 0;
   const hasActions = visibleActions && visibleActions.length > 0;
 
+
   const renderSkeletonRows = () => {
     const skeletonRows = Array.from({ length: rowsPerPage }, (_, index) => index);
 
@@ -386,7 +386,7 @@ export function TableCrud<T>({
   );
 
   return (
-    <TableWrapper>
+    <TableWrapper sx={wrapperSx}>
       <StyledTableContainer>
         <Table style={{ width: "100%", minWidth: 650 }}>
           {renderTableHeader()}
@@ -428,7 +428,7 @@ export function TableCrud<T>({
         </Table>
       </StyledTableContainer>
 
-      {total > 0 && (
+      {!hidePagination && total > 0 && (
         <TablePagination
           component="div"
           rowsPerPageOptions={rowsPerPageOptions}

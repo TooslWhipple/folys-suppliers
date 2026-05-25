@@ -7,31 +7,31 @@ import { Title } from "@/components/Title/Title";
 import { StatsCardGroup, StatsCardData } from "@/components/StatsCard/StatsCard";
 import { TabFilters } from "@/components/TabFilters/TabFilters";
 import { TableCrud } from "@/components/TableCrud/TableCrud";
-import { MercanciaDanadaDrawer } from "@/components/MercanciaDanadaDrawer/MercanciaDanadaDrawer";
+import { SolicitudRefaccionDetailModal } from "@/components/MercanciaDanadaDetailModal/MercanciaDanadaDetailModal";
 import { AlertTriangle } from "lucide-react";
-import { mercanciaDanadaDetalle, type MercanciaDanadaDetail } from "@/mocks/data";
+import { solicitudesRefaccionDetalle, type SolicitudRefaccionDetail } from "@/mocks/data";
 import type { TabOption } from "@/components/TabFilters/TabFilters";
 import type { Column, RowAction } from "@/components/TableCrud/TableCrud";
 import type { StatusChipVariant } from "@/components/StatusChip/StatusChip";
 
-type Mercancia = MercanciaDanadaDetail;
+type Solicitud = SolicitudRefaccionDetail;
 
 const STATUS_VARIANTS: Record<string, StatusChipVariant> = {
-  "Por recolectar": "warning",
-  "Recolectado": "success",
+  "Por entregar": "warning",
+  "Entregado": "success",
 };
 
 const STATUS_TABS: TabOption[] = [
   { label: "Todos", value: "all" },
-  { label: "Por recolectar", value: "Por recolectar" },
-  { label: "Recolectado", value: "Recolectado" },
+  { label: "Por entregar", value: "Por entregar" },
+  { label: "Entregados", value: "Entregado" },
 ];
 
-const columns: Column<Mercancia>[] = [
-  { id: "reportado", label: "Reportado", size: "md" },
+const columns: Column<Solicitud>[] = [
+  { id: "solicitado", label: "Solicitado", size: "md" },
   { id: "articulo", label: "Artículo", size: "lg" },
   { id: "generada", label: "Generada", size: "sm" },
-  { id: "dano", label: "Daño", size: "md" },
+  { id: "refaccion", label: "Refacción", size: "md" },
   { id: "estatus", label: "Estatus", type: "chip", size: "sm", chipVariantMap: STATUS_VARIANTS },
   {
     id: "tiempo",
@@ -39,7 +39,7 @@ const columns: Column<Mercancia>[] = [
     size: "sm",
     format: (value, row) => {
       const tiempo = value as string;
-      const showAlert = row.estatus === "Por recolectar";
+      const showAlert = row.estatus === "Por entregar";
       return (
         <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
           {showAlert && <AlertTriangle size={14} color="#DC2626" />}
@@ -52,28 +52,28 @@ const columns: Column<Mercancia>[] = [
 
 const MOCK_STATS: StatsCardData[] = [
   {
-    id: "articulos-pendientes",
-    label: "Artículos pendientes por recolectar",
-    value: mercanciaDanadaDetalle.filter((i) => i.estatus === "Por recolectar").length,
+    id: "solicitudes-pendientes",
+    label: "Solicitudes pendientes",
+    value: solicitudesRefaccionDetalle.filter((i) => i.estatus === "Por entregar").length,
     isCurrency: false,
   },
   {
-    id: "costo-reparaciones",
-    label: "Costo de reparaciones",
-    value: 25980.0,
-    isCurrency: true,
+    id: "cantidad-total",
+    label: "Cantidad total pendiente",
+    value: solicitudesRefaccionDetalle.filter((i) => i.estatus === "Por entregar").reduce((acc, i) => acc + i.cantidad, 0),
+    isCurrency: false,
   },
 ];
 
-export default function MercanciaDanadaPage() {
+export default function SolicitudesRelacionesPage() {
   const [activeTab, setActiveTab] = useState("all");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [searchValue, setSearchValue] = useState("");
-  const [selectedItem, setSelectedItem] = useState<MercanciaDanadaDetail | null>(null);
+  const [selectedItem, setSelectedItem] = useState<SolicitudRefaccionDetail | null>(null);
 
   const filteredData = useMemo(() => {
-    let data = mercanciaDanadaDetalle;
+    let data = solicitudesRefaccionDetalle;
 
     if (activeTab !== "all") {
       data = data.filter((item) => item.estatus === activeTab);
@@ -84,7 +84,7 @@ export default function MercanciaDanadaPage() {
       data = data.filter(
         (item) =>
           item.articulo.toLowerCase().includes(q) ||
-          item.dano.toLowerCase().includes(q) ||
+          item.refaccion.toLowerCase().includes(q) ||
           item.generada.toLowerCase().includes(q)
       );
     }
@@ -107,7 +107,7 @@ export default function MercanciaDanadaPage() {
     setPage(0);
   };
 
-  const actions: RowAction<Mercancia>[] = [
+  const actions: RowAction<Solicitud>[] = [
     {
       id: "ver",
       label: "Ver detalle",
@@ -118,7 +118,7 @@ export default function MercanciaDanadaPage() {
   return (
     <MainLayout>
       <Stack direction="column" spacing={3}>
-        <Title title="Mercancía dañada" />
+        <Title title="Solicitudes de refacciones" />
 
         <StatsCardGroup cards={MOCK_STATS} />
 
@@ -143,11 +143,11 @@ export default function MercanciaDanadaPage() {
           onPageChange={setPage}
           onRowsPerPageChange={setRowsPerPage}
           onRowClick={(row) => setSelectedItem(row)}
-          emptyMessage="No hay registros de mercancía dañada"
+          emptyMessage="No hay solicitudes de refacciones"
         />
       </Stack>
 
-      <MercanciaDanadaDrawer
+      <SolicitudRefaccionDetailModal
         open={Boolean(selectedItem)}
         item={selectedItem}
         onClose={() => setSelectedItem(null)}
