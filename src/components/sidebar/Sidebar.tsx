@@ -25,8 +25,11 @@ import {
   FileText,
   Receipt,
   Menu,
+  LogOut,
 } from "lucide-react";
 import { SIDEBAR_WIDTH, colors } from "@/lib/theme";
+import { useAuthContext } from "@/contexts/AuthContext";
+import { useSupplierAuth } from "@/hooks/useSupplierAuth";
 
 const StyledDrawer = styled(Drawer, {
   shouldForwardProp: (prop) => prop !== "isMobile",
@@ -152,6 +155,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const { supplier } = useAuthContext();
+  const { logout } = useSupplierAuth();
+
+  const initials = supplier?.name
+    ? supplier.name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()
+    : "P";
 
   const isActive = (path: string) => {
     if (path === "/") {
@@ -212,17 +221,20 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       <UserProfileContainer>
         <UserAvatar sx={{ bgcolor: "#7C3AED" }}>
           <Typography sx={{ fontSize: "12px", fontWeight: 600, color: "white" }}>
-            AM
+            {initials}
           </Typography>
         </UserAvatar>
-        <UserInfo>
+        <UserInfo sx={{ flex: 1 }}>
           <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.3 }}>
-            Andrea Montes
+            {supplier?.name ?? "Proveedor"}
           </Typography>
           <Typography variant="caption" sx={{ color: colors.text.secondary, lineHeight: 1.3 }}>
-            andrea.m@proveedor.com
+            {supplier?.email ?? ""}
           </Typography>
         </UserInfo>
+        <IconButton size="small" onClick={logout} title="Cerrar sesión" sx={{ flexShrink: 0 }}>
+          <LogOut size={16} />
+        </IconButton>
       </UserProfileContainer>
     </>
   );
