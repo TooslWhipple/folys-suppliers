@@ -1,4 +1,4 @@
-import { api } from "@/lib/api/client";
+import { get } from "@/lib/api/client";
 
 export interface DamagedProductItem {
   productCode: string;
@@ -45,9 +45,9 @@ export const damagedProductsService = {
     const queryParams: Record<string, string | number> = { page, limit };
     if (search) queryParams.search = search;
 
-    return api.get<PaginatedResponse<DamagedProductItem>>(
+    return get<PaginatedResponse<DamagedProductItem>>(
       `/supplier-portal/damaged-products`,
-      queryParams
+      { params: queryParams }
     );
   },
 
@@ -55,7 +55,7 @@ export const damagedProductsService = {
    * Get statistics for damaged products
    */
   async getStats(): Promise<DamagedProductStats> {
-    return api.get<DamagedProductStats>(`/supplier-portal/damaged-products/stats`);
+    return get<DamagedProductStats>(`/supplier-portal/damaged-products/stats`);
   },
 };
 

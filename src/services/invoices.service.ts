@@ -1,4 +1,4 @@
-import { api } from "@/lib/api/client";
+import { get } from "@/lib/api/client";
 
 export interface AccountStatementEntry {
   id: string;
@@ -47,9 +47,9 @@ export const invoicesService = {
     const queryParams: Record<string, string | number> = { page, limit };
     if (month) queryParams.month = month;
 
-    return api.get<AccountStatementResponse>(
+    return get<AccountStatementResponse>(
       `/supplier-portal/account-statement`,
-      queryParams
+      { params: queryParams }
     );
   },
 };

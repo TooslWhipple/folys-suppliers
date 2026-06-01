@@ -28,7 +28,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { SIDEBAR_WIDTH, colors } from "@/lib/theme";
-import { useAuthContext } from "@/contexts/AuthContext";
+import { useAuthStore, type AuthState } from "@/store/useAuthStore";
 import { useSupplierAuth } from "@/hooks/useSupplierAuth";
 
 const StyledDrawer = styled(Drawer, {
@@ -155,11 +155,11 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-  const { supplier } = useAuthContext();
+  const supplier = useAuthStore((state: AuthState) => state.user);
   const { logout } = useSupplierAuth();
 
   const initials = supplier?.name
-    ? supplier.name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()
+    ? supplier.name.split(" ").slice(0, 2).map((w: string) => w[0]).join("").toUpperCase()
     : "P";
 
   const isActive = (path: string) => {

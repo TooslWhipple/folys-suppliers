@@ -2,13 +2,16 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useAuthContext } from "@/contexts/AuthContext";
+import { useAuthStore, type AuthState } from "@/store/useAuthStore";
 import { authService } from "@/services/auth.service";
 import { getErrorMessage } from "@/lib/api/client";
 
 export function useSupplierAuth() {
   const router = useRouter();
-  const { setAuth, logout: contextLogout, isAuthenticated, supplier } = useAuthContext();
+  const setAuth = useAuthStore((state: AuthState) => state.setAuth);
+  const contextLogout = useAuthStore((state: AuthState) => state.logout);
+  const isAuthenticated = useAuthStore((state: AuthState) => state.isAuthenticated);
+  const supplier = useAuthStore((state: AuthState) => state.user);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,7 +64,8 @@ export function useSupplierAuth() {
     [router],
   );
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    await authService.logout();
     contextLogout();
     router.push("/login");
   }, [contextLogout, router]);
