@@ -1,4 +1,4 @@
-import { api } from "@/lib/api/client";
+import { get } from "@/lib/api/client";
 
 export interface CatalogItem {
   id: string;
@@ -43,7 +43,9 @@ export const catalogService = {
     if (search) queryParams.search = search;
     if (status && status !== "all") queryParams.status = status;
 
-    return api.get<PaginatedResponse<CatalogItem>>(`/supplier-portal/catalog`, queryParams);
+    return get<PaginatedResponse<CatalogItem>>(`/supplier-portal/catalog`, {
+      params: queryParams,
+    });
   },
 };
 

@@ -1,4 +1,4 @@
-import { api } from "@/lib/api/client";
+import { get } from "@/lib/api/client";
 
 export interface SparePartRequestItem {
   id: string;
@@ -44,9 +44,9 @@ export const sparePartRequestsService = {
     const queryParams: Record<string, string | number> = { page, limit };
     if (search) queryParams.search = search;
 
-    return api.get<PaginatedResponse<SparePartRequestItem>>(
+    return get<PaginatedResponse<SparePartRequestItem>>(
       `/supplier-portal/spare-part-requests`,
-      queryParams
+      { params: queryParams }
     );
   },
 
@@ -54,7 +54,7 @@ export const sparePartRequestsService = {
    * Get statistics for spare part requests
    */
   async getStats(): Promise<SparePartRequestStats> {
-    return api.get<SparePartRequestStats>(`/supplier-portal/spare-part-requests/stats`);
+    return get<SparePartRequestStats>(`/supplier-portal/spare-part-requests/stats`);
   },
 };
 

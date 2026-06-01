@@ -1,4 +1,4 @@
-import { api } from "./api";
+import { get, put, post } from "./api";
 
 export interface OrderItem {
   id: number;
@@ -161,11 +161,11 @@ export const ordersService = {
     const queryParams: Record<string, string | number> = { page, limit, supplierId: 2 };
     if (status) queryParams.status = status;
 
-    const response = await api.get<{
+    const response = await get<{
       success: boolean;
       data: PaginatedResponse<Order>;
       message?: string;
-    }>("/supplier-portal/orders", queryParams);
+    }>("/supplier-portal/orders", { params: queryParams });
 
     return response.data;
   },
@@ -174,7 +174,7 @@ export const ordersService = {
    * Get statistics for the authenticated supplier's orders
    */
   async getStats(): Promise<OrderStats> {
-    const response = await api.get<{
+    const response = await get<{
       success: boolean;
       data: OrderStats;
       message?: string;
@@ -188,7 +188,7 @@ export const ordersService = {
    * @param id - Order ID
    */
   async getOrderById(id: number): Promise<Order> {
-    const response = await api.get<{
+    const response = await get<{
       success: boolean;
       data: Order;
       message?: string;
@@ -202,7 +202,7 @@ export const ordersService = {
    * @param id - Order ID
    */
   async getOrderFull(id: number): Promise<OrderFull> {
-    const response = await api.get<{
+    const response = await get<{
       success: boolean;
       data: OrderFull;
       message?: string;
@@ -218,7 +218,7 @@ export const ordersService = {
    * @param data - Order update data
    */
   async updateOrder(orderId: number, data: UpdateOrderData): Promise<{ success: boolean; message: string }> {
-    const response = await api.put<{
+    const response = await put<{
       success: boolean;
       data: { success: boolean; message: string };
       message?: string;
@@ -231,7 +231,7 @@ export const ordersService = {
    * @param orderId - Order ID
    */
   async getOrderInvoices(orderId: number): Promise<Invoice[]> {
-    const response = await api.get<{
+    const response = await get<{
       success: boolean;
       data: Invoice[];
       message?: string;
@@ -257,7 +257,7 @@ export const ordersService = {
       formData.append('xml', data.xmlFile);
     }
 
-    const response = await api.post<{
+    const response = await post<{
       success: boolean;
       data: Invoice;
       message?: string;
@@ -266,7 +266,7 @@ export const ordersService = {
   },
 
   async getDeliveryMethods(): Promise<DeliveryMethod[]> {
-    const response = await api.get<{
+    const response = await get<{
       success: boolean;
       data: DeliveryMethod[];
       message?: string;
