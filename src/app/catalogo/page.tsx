@@ -104,15 +104,17 @@ function ProductItem({ articulo, onClick }: ProductItemProps) {
     <ProductCard onClick={onClick} sx={{ cursor: "pointer", "&:hover": { backgroundColor: colors.background.main } }}>
       {/* Left: Product Image */}
       <ProductImage>
-        <Box
-          component="img"
-          src={articulo.imagen}
-          alt={articulo.nombre}
-          sx={{ width: "100%", height: "100%", objectFit: "cover" }}
-          onError={(e) => {
-            (e.target as HTMLImageElement).style.display = "none";
-          }}
-        />
+        {articulo.imagen && (
+          <Box
+            component="img"
+            src={articulo.imagen}
+            alt={articulo.nombre}
+            sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = "none";
+            }}
+          />
+        )}
         <Box
           sx={{
             width: "100%",

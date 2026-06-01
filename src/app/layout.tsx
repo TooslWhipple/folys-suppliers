@@ -1,11 +1,10 @@
-"use client";
-
-import { ThemeProvider } from "@mui/material/styles";
-import CssBaseline from "@mui/material/CssBaseline";
-import { theme } from "@/lib/theme";
-import { NotificationProvider } from "@/contexts/NotificationContext";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { Providers } from "./providers";
 import "./globals.css";
+
+export const metadata = {
+  title: "FolySoft - Portal de Proveedores",
+  description: "Portal de proveedores Foly",
+};
 
 export default function RootLayout({
   children,
@@ -14,19 +13,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <head>
-        <title>FolySoft - Portal de Proveedores</title>
-        <meta name="description" content="Portal de proveedores Foly" />
-      </head>
       <body>
-        <ThemeProvider theme={theme}>
-          <CssBaseline />
-          <AuthProvider>
-            <NotificationProvider>
-              {children}
-            </NotificationProvider>
-          </AuthProvider>
-        </ThemeProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

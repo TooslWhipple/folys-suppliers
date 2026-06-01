@@ -1,6 +1,13 @@
-import axios, { AxiosInstance, AxiosError, AxiosResponse, InternalAxiosRequestConfig } from "axios";
+import axios, {
+  AxiosError,
+  AxiosResponse,
+  InternalAxiosRequestConfig,
+  AxiosRequestConfig,
+} from "axios";
+import { useAuthStore } from "@/store/useAuthStore";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
 
 export interface ApiError {
   message: string;
@@ -21,95 +28,188 @@ export interface ApiErrorResponse {
 
 export type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;
 
-class ApiClient {
-  private client: AxiosInstance;
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 30000,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
 
-  constructor() {
-    this.client = axios.create({
-      baseURL: API_BASE_URL,
-      timeout: 30000,
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
-    this.setupInterceptors();
-  }
-
-  private setupInterceptors(): void {
-    // Request interceptor
-    this.client.interceptors.request.use(
-      (config: InternalAxiosRequestConfig) => {
-        // Add auth token if available
-        const token = typeof window !== "undefined" ? localStorage.getItem("supplier_token") : null;
-        if (token && config.headers) {
-          config.headers.Authorization = `Bearer ${token}`;
-        }
-        // Remove Content-Type for FormData to let browser set it with boundary
-        if (config.data instanceof FormData) {
-          delete config.headers['Content-Type'];
-        }
-        return config;
-      },
-      (error: AxiosError) => {
-        return Promise.reject(error);
-      }
-    );
-
-    // Response interceptor
-    this.client.interceptors.response.use(
-      (response: AxiosResponse) => {
-        return response;
-      },
-      (error: AxiosError<ApiErrorResponse>) => {
-        const apiError: ApiError = {
-          message: error.response?.data?.error?.message || "Error desconocido",
-          code: error.code,
-          status: error.response?.status,
-        };
-
-        // Handle specific error cases
-        if (error.response?.status === 401) {
-          // Unauthorized - clear token and redirect to login
-          if (typeof window !== "undefined") {
-            localStorage.removeItem("token");
-            window.location.href = "/login";
-          }
-        }
-
-        return Promise.reject(apiError);
-      }
-    );
-  }
-
-  async get<T>(url: string, params?: Record<string, unknown>): Promise<T> {
-    const response = await this.client.get<T>(url, { params });
-    return response.data;
-  }
-
-  async post<T>(url: string, data?: unknown): Promise<T> {
-    const response = await this.client.post<T>(url, data);
-    return response.data;
-  }
-
-  async put<T>(url: string, data?: unknown): Promise<T> {
-    const response = await this.client.put<T>(url, data);
-    return response.data;
-  }
-
-  async patch<T>(url: string, data?: unknown): Promise<T> {
-    const response = await this.client.patch<T>(url, data);
-    return response.data;
-  }
-
-  async delete<T>(url: string): Promise<T> {
-    const response = await this.client.delete<T>(url);
-    return response.data;
-  }
+function isPublicAuthRequest(config: AxiosRequestConfig | undefined): boolean {
+  const url = config?.url ?? "";
+  if (typeof url !== "string") return false;
+  return [
+    "/supplier-portal/auth/login",
+    "/supplier-portal/auth/validate-otp",
+    "/supplier-portal/auth/resend-otp",
+    "/supplier-portal/auth/set-password",
+    "/supplier-portal/auth/refresh",
+    "/supplier-portal/auth/logout",
+  ].some((path) => url.includes(path));
 }
 
-export const apiClient = new ApiClient();
-export const api = apiClient;
+function isRefreshRequest(config: AxiosRequestConfig | undefined): boolean {
+  const url = config?.url ?? "";
+  return typeof url === "string" && url.includes("/supplier-portal/auth/refresh");
+}
+
+let isRefreshing = false;
+const failedQueue: Array<{
+  resolve: (token: string) => void;
+  reject: (err: AxiosError) => void;
+}> = [];
+
+function processQueue(err: AxiosError | null, token: string | null) {
+  failedQueue.forEach((prom) => {
+    if (err) prom.reject(err);
+    else if (token) prom.resolve(token);
+  });
+  failedQueue.length = 0;
+}
+
+api.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    const token = useAuthStore.getState().token;
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    if (config.data instanceof FormData) {
+      delete config.headers["Content-Type"];
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+api.interceptors.response.use(
+  (response: AxiosResponse) => response,
+  async (error: AxiosError) => {
+    const originalRequest = error.config;
+
+    if (error.response?.status !== 401) {
+      return Promise.reject(error);
+    }
+
+    if (!originalRequest) {
+      useAuthStore.getState().logout();
+      return Promise.reject(error);
+    }
+
+    if (
+      isPublicAuthRequest(originalRequest) ||
+      isRefreshRequest(originalRequest) ||
+      (originalRequest as AxiosRequestConfig & { _retry?: boolean })._retry
+    ) {
+      if (isPublicAuthRequest(originalRequest)) {
+        return Promise.reject(error);
+      }
+      useAuthStore.getState().logout();
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
+      return Promise.reject(error);
+    }
+
+    if (isRefreshing) {
+      return new Promise<string>((resolve, reject) => {
+        failedQueue.push({
+          resolve: (token: string) => {
+            if (originalRequest.headers) {
+              originalRequest.headers.Authorization = `Bearer ${token}`;
+            }
+            resolve(token);
+          },
+          reject,
+        });
+      })
+        .then((token) =>
+          api.request({
+            ...originalRequest,
+            headers: {
+              ...originalRequest.headers,
+              Authorization: `Bearer ${token}`,
+            },
+          })
+        )
+        .catch((e) => Promise.reject(e));
+    }
+
+    (originalRequest as AxiosRequestConfig & { _retry?: boolean })._retry =
+      true;
+    isRefreshing = true;
+
+    try {
+      const { authService } = await import("@/services/auth.service");
+      const result = await authService.refresh();
+      if (result.error || !result.data?.accessToken) {
+        processQueue(error, null);
+        useAuthStore.getState().logout();
+        if (typeof window !== "undefined") {
+          window.location.href = "/login";
+        }
+        return Promise.reject(error);
+      }
+
+      const newToken = result.data.accessToken;
+      useAuthStore.getState().setToken(newToken);
+      processQueue(null, newToken);
+
+      if (originalRequest.headers) {
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+      }
+      return api.request(originalRequest);
+    } finally {
+      isRefreshing = false;
+    }
+  }
+);
+
+export async function get<T>(
+  url: string,
+  config?: AxiosRequestConfig
+): Promise<T> {
+  const response = await api.get<T>(url, config);
+  return response.data;
+}
+
+export async function post<T>(
+  url: string,
+  data?: unknown,
+  config?: AxiosRequestConfig
+): Promise<T> {
+  const response = await api.post<T>(url, data, config);
+  return response.data;
+}
+
+export async function put<T>(
+  url: string,
+  data?: unknown,
+  config?: AxiosRequestConfig
+): Promise<T> {
+  const response = await api.put<T>(url, data, config);
+  return response.data;
+}
+
+export async function patch<T>(
+  url: string,
+  data?: unknown,
+  config?: AxiosRequestConfig
+): Promise<T> {
+  const response = await api.patch<T>(url, data, config);
+  return response.data;
+}
+
+export async function del<T>(
+  url: string,
+  config?: AxiosRequestConfig
+): Promise<T> {
+  const response = await api.delete<T>(url, config);
+  return response.data;
+}
+
+export const apiClient = { get, post, put, patch, delete: del };
+export { api };
 
 export const handleApiError = (error: unknown): ApiError => {
   if (error && typeof error === "object" && "message" in error) {
@@ -132,4 +232,3 @@ export const getErrorMessage = (error: unknown): string => {
   return "Ha ocurrido un error inesperado";
 };
 
-export default apiClient;
