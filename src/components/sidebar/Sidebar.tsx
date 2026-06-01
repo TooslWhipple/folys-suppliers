@@ -30,6 +30,7 @@ import {
 import { SIDEBAR_WIDTH, colors } from "@/lib/theme";
 import { useAuthStore, type AuthState } from "@/store/useAuthStore";
 import { useSupplierAuth } from "@/hooks/useSupplierAuth";
+import NotificationInbox from "@/components/NotificationInbox/NotificationInbox";
 
 const StyledDrawer = styled(Drawer, {
   shouldForwardProp: (prop) => prop !== "isMobile",
@@ -41,6 +42,7 @@ const StyledDrawer = styled(Drawer, {
     boxSizing: "border-box",
     backgroundColor: colors.background.sidebar,
     borderRight: `1px solid ${colors.border}`,
+    overflow: "visible",
   },
 }));
 
@@ -194,6 +196,9 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           <Typography variant="caption" sx={{ color: colors.text.secondary }}>
             Proveedores
           </Typography>
+        </Box>
+        <Box sx={{ marginLeft: "auto" }}>
+          <NotificationInbox />
         </Box>
       </LogoContainer>
 

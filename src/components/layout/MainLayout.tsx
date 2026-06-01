@@ -7,7 +7,6 @@ import { styled } from "@mui/material/styles";
 import { Box, IconButton, CircularProgress } from "@mui/material";
 import { Menu } from "lucide-react";
 import { Sidebar } from "@/components/sidebar/Sidebar";
-import NotificationInbox from "@/components/NotificationInbox/NotificationInbox";
 import { CONTENT_PADDING, colors } from "@/lib/theme";
 import { useAuthStore, type AuthState } from "@/store/useAuthStore";
 
@@ -39,24 +38,6 @@ const ContentWrapper = styled(Box)(({ theme }) => ({
   },
   [theme.breakpoints.down("sm")]: {
     padding: 12,
-    paddingTop: 64,
-  },
-}));
-
-const TopBar = styled(Box)(({ theme }) => ({
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "flex-end",
-  padding: "12px 24px",
-  backgroundColor: colors.background.main,
-  borderBottom: `1px solid ${colors.border}`,
-  minHeight: 56,
-  [theme.breakpoints.down("md")]: {
-    padding: "12px 16px",
-    paddingTop: 72,
-  },
-  [theme.breakpoints.down("sm")]: {
-    padding: "12px 12px",
     paddingTop: 64,
   },
 }));
@@ -119,15 +100,12 @@ export function MainLayout({ children }: MainLayoutProps) {
     <LayoutContainer>
       <Sidebar open={mobileOpen} onClose={handleCloseMobile} />
       <MainContent>
-        <TopBar>
+        <ContentWrapper>
           {isMobile && (
             <MobileMenuButton onClick={handleToggleMobile}>
               <Menu size={20} />
             </MobileMenuButton>
           )}
-          <NotificationInbox />
-        </TopBar>
-        <ContentWrapper>
           {children}
         </ContentWrapper>
       </MainContent>
