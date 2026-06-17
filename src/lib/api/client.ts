@@ -223,6 +223,18 @@ export const isApiError = (error: unknown): error is ApiError => {
 };
 
 export const getErrorMessage = (error: unknown): string => {
+  if (
+    error &&
+    typeof error === "object" &&
+    "response" in error &&
+    (error as { response?: { data?: unknown } }).response?.data &&
+    typeof (error as { response?: { data?: unknown } }).response!.data === "object" &&
+    (error as { response?: { data?: { message?: string } } }).response!.data !== null
+  ) {
+    const data = (error as { response: { data: { message?: string; error?: { message?: string } } } }).response.data;
+    if (data.message) return data.message;
+    if (data.error?.message) return data.error.message;
+  }
   if (isApiError(error)) {
     return error.message;
   }

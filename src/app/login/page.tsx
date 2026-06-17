@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Image from "next/image";
 import {
-  Alert,
   CircularProgress,
   InputAdornment,
   IconButton,
@@ -30,7 +29,7 @@ import {
 } from "@/styles/login/styles";
 
 export default function LoginPage() {
-  const { login, isLoading, error } = useSupplierAuth();
+  const { login, isLoading, error, setError } = useSupplierAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -63,19 +62,18 @@ export default function LoginPage() {
         <FormWrapper>
           <Typography variant="h1">Ingresa a tu cuenta</Typography>
 
-          {error && (
-            <Alert severity="error" sx={{ width: "100%" }}>
-              {error}
-            </Alert>
-          )}
-
           <Form onSubmit={handleLogin}>
             <TextField
               label="Correo electrónico *"
               placeholder="Ingresa tu correo electrónico"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                if (error) setError(null);
+                setEmail(e.target.value);
+              }}
+              error={!!error}
+              helperText=""
               fullWidth
               autoComplete="email"
               autoFocus
@@ -95,9 +93,12 @@ export default function LoginPage() {
               placeholder="Ingresa tu contraseña"
               type={showPassword ? "text" : "password"}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              error={!!passwordError}
-              helperText={passwordError}
+              onChange={(e) => {
+                if (error) setError(null);
+                setPassword(e.target.value);
+              }}
+              error={!!error || !!passwordError}
+              helperText={error || passwordError || ""}
               fullWidth
               autoComplete="current-password"
               slotProps={{
