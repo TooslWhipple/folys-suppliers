@@ -41,6 +41,7 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
   const { execute, loading, data: order } = useApi<OrderFull>();
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<OrderItemFull[]>([]);
+  const [originalQuantities, setOriginalQuantities] = useState<Record<number, number>>({});
   const [hasChanges, setHasChanges] = useState(false);
   const [pickerItemId, setPickerItemId] = useState<number | null>(null);
   const [deliveryDates, setDeliveryDates] = useState<Record<number, Date>>({});
@@ -85,6 +86,9 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
     if (order?.order_items) {
       // eslint-disable-next-line
       setItems(order.order_items);
+      const orig: Record<number, number> = {};
+      order.order_items.forEach((i) => { orig[i.id] = i.requested_quantity; });
+      setOriginalQuantities(orig);
     }
     // Load saved delivery dates and methods from order_deliveries
     if (order?.order_deliveries && order.order_deliveries.length > 0) {
@@ -161,14 +165,14 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
 
   const updateItemQuantity = (itemId: number, delta: number) => {
     setItems((prev) =>
-      prev.map((item) =>
-        item.id === itemId
-          ? {
-              ...item,
-              requested_quantity: Math.max(0, item.requested_quantity + delta),
-            }
-          : item
-      )
+      prev.map((item) => {
+        if (item.id !== itemId) return item;
+        const newQty = item.requested_quantity + delta;
+        if (delta > 0 && newQty > (originalQuantities[itemId] ?? item.requested_quantity)) {
+          return item;
+        }
+        return { ...item, requested_quantity: Math.max(0, newQty) };
+      })
     );
     setHasChanges(true);
   };
@@ -504,8 +508,8 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
                         <Typography variant="body2" sx={{ minWidth: 24, textAlign: "center", fontWeight: 700, fontSize: "0.875rem", color: "#101828" }}>
                           {item.requested_quantity}
                         </Typography>
-                        <IconButton size="small" onClick={() => updateItemQuantity(item.id, 1)}
-                          sx={{ width: 24, height: 24, p: 0, color: "#344054", "&:hover": { bgcolor: "transparent" } }}>
+                        <IconButton size="small" onClick={() => updateItemQuantity(item.id, 1)} disabled={item.requested_quantity >= (originalQuantities[item.id] ?? item.requested_quantity)}
+                          sx={{ width: 24, height: 24, p: 0, color: "#344054", "&:hover": { bgcolor: "transparent" }, "&.Mui-disabled": { color: "#d0d5dd" } }}>
                           <Typography sx={{ fontSize: "1.1rem", fontWeight: 400, lineHeight: 1 }}>+</Typography>
                         </IconButton>
                       </Box>
