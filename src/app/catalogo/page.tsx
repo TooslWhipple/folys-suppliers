@@ -104,31 +104,18 @@ function ProductItem({ articulo, onClick }: ProductItemProps) {
     <ProductCard onClick={onClick} sx={{ cursor: "pointer", "&:hover": { backgroundColor: colors.background.main } }}>
       {/* Left: Product Image */}
       <ProductImage>
-        {articulo.imagen && (
+        {articulo.imagen ? (
           <Box
             component="img"
             src={articulo.imagen}
             alt={articulo.nombre}
             sx={{ width: "100%", height: "100%", objectFit: "cover" }}
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = "none";
-            }}
           />
-        )}
-        <Box
-          sx={{
-            width: "100%",
-            height: "100%",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "#F3F4F6",
-          }}
-        >
+        ) : (
           <Typography variant="caption" sx={{ color: colors.text.secondary }}>
             IMG
           </Typography>
-        </Box>
+        )}
       </ProductImage>
 
       {/* Middle: Product Name, SKU, Units, Stock, Stats */}
@@ -470,7 +457,16 @@ function ProductDrawer({ open, onClose, articulo }: ProductDrawerProps) {
               overflow: "hidden",
             }}
           >
-            <Typography variant="caption" sx={{ color: colors.text.secondary }}>IMG</Typography>
+            {articulo.imagen ? (
+              <Box
+                component="img"
+                src={articulo.imagen}
+                alt={articulo.nombre}
+                sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            ) : (
+              <Typography variant="caption" sx={{ color: colors.text.secondary }}>IMG</Typography>
+            )}
           </Box>
         </Box>
 
