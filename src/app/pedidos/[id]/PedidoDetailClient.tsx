@@ -15,6 +15,8 @@ import {
   IconButton,
   Grid,
   Divider,
+  Snackbar,
+  Alert,
 } from "@mui/material";
 import {
   ArrowBack,
@@ -22,6 +24,16 @@ import {
   CalendarToday,
   Inventory,
 } from "@mui/icons-material";
+
+// Formats using local calendar fields (not toISOString, which converts to
+// UTC and can shift the date backward/forward depending on the timezone
+// offset sign — this field only ever needs the calendar day, not a time).
+function toDateOnlyString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 const STATUS_MAP: Record<string, string> = {
   pending: "Pendiente",
@@ -50,6 +62,11 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
   const [addFacturaOpen, setAddFacturaOpen] = useState(false);
   const [facturas, setFacturas] = useState<FacturaFormData[]>([]);
   const [availableDeliveryMethods, setAvailableDeliveryMethods] = useState<DeliveryMethod[]>([]);
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: "success" | "error";
+  }>({ open: false, message: "", severity: "success" });
 
   const loadOrder = async () => {
     try {
@@ -183,7 +200,9 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
       const updatedItems = items.map((item) => ({
         itemId: item.id,
         requestedQuantity: item.requested_quantity,
-        deliveryDate: deliveryDates[item.id]?.toISOString(),
+        deliveryDate: deliveryDates[item.id]
+          ? toDateOnlyString(deliveryDates[item.id])
+          : undefined,
         deliveryMethodId: deliveryMethodIds[item.id],
       }));
 
@@ -195,10 +214,9 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
       setDeliveryDates({}); // Clear local delivery dates after save
       setDeliveryMethodIds({}); // Clear local delivery method IDs after save
 
-      // Show success notification
-      alert("Datos actualizados exitosamente");
+      setSnackbar({ open: true, message: "Datos actualizados exitosamente", severity: "success" });
     } catch {
-      alert("Error al actualizar los datos");
+      setSnackbar({ open: true, message: "Error al actualizar los datos", severity: "error" });
     }
   };
 
@@ -238,8 +256,9 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
       );
 
       setAddFacturaOpen(false);
+      setSnackbar({ open: true, message: "Factura agregada exitosamente", severity: "success" });
     } catch {
-      alert("Error al agregar factura");
+      setSnackbar({ open: true, message: "Error al agregar factura", severity: "error" });
     }
   };
 
@@ -680,6 +699,22 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
           </Grid>
         </Grid>
       </Box>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert
+          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{ width: "100%" }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </MainLayout>
   );
 }
