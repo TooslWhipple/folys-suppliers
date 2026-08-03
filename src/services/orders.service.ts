@@ -158,7 +158,7 @@ export const ordersService = {
   async getOrders(params: GetOrdersParams): Promise<PaginatedResponse<Order>> {
     const { page = 1, limit = 10, status } = params;
 
-    const queryParams: Record<string, string | number> = { page, limit, supplierId: 2 };
+    const queryParams: Record<string, string | number> = { page, limit };
     if (status) queryParams.status = status;
 
     const response = await get<{
@@ -198,7 +198,7 @@ export const ordersService = {
   },
 
   /**
-   * Get full order details from ERP API
+   * Get full order details for the authenticated supplier
    * @param id - Order ID
    */
   async getOrderFull(id: number): Promise<OrderFull> {
@@ -207,7 +207,7 @@ export const ordersService = {
       data: OrderFull;
       message?: string;
       errorCode: string | null;
-    }>(`/orders/${id}/full`);
+    }>(`/supplier-portal/orders/${id}/full`);
 
     return response.data;
   },
