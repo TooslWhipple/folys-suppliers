@@ -1,4 +1,5 @@
 import { get } from "@/lib/api/client";
+import type { PaginatedResponse } from "@/types/pagination";
 
 export interface SparePartRequestItem {
   id: string;
@@ -15,14 +16,6 @@ export interface SparePartRequestItem {
 export interface SparePartRequestStats {
   itemsPending: number;
   totalQuantity: number;
-}
-
-export interface PaginatedResponse<T> {
-  rows: T[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
 }
 
 export interface GetSparePartRequestsParams {
