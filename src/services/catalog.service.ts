@@ -1,4 +1,5 @@
 import { get } from "@/lib/api/client";
+import type { PaginatedResponse } from "@/types/pagination";
 
 export interface CatalogItem {
   id: string;
@@ -14,14 +15,6 @@ export interface CatalogItem {
   estatus: "activo" | "archivado";
   cost?: number;
   currency?: string;
-}
-
-export interface PaginatedResponse<T> {
-  rows: T[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
 }
 
 export interface GetCatalogParams {

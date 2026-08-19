@@ -13,6 +13,7 @@
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^9.0.0",
     "@mui/material": "^9.0.0",
+    "@mui/x-date-pickers": "^9.11.0",
     "@novu/nextjs": "^3.16.0",
     "axios": "^1.16.0",
     "dayjs": "^1.11.20",

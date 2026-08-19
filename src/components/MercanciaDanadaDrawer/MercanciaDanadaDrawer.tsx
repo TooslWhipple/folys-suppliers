@@ -1,30 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import {
-  Box,
-  Typography,
-  IconButton,
-  Modal,
-  Paper,
-  Tab,
-  Tabs,
-  TextField,
-  Radio,
-  RadioGroup,
-  FormControlLabel,
-  InputAdornment,
-} from "@mui/material";
+import { Box, Typography, IconButton, Modal, Paper, Skeleton } from "@mui/material";
 import { Close } from "@mui/icons-material";
-import { CalendarDays, Clock, ImagePlus, Monitor, Upload } from "lucide-react";
+import { Clock } from "lucide-react";
+import numeral from "numeral";
 import { StatusChip } from "@/components/StatusChip/StatusChip";
-import type { MercanciaDanadaDetail } from "@/mocks/data";
+import type { DamagedProductDetail } from "@/services/damaged-products.service";
 
 interface MercanciaDanadaDrawerProps {
   open: boolean;
-  item: MercanciaDanadaDetail | null;
+  item: DamagedProductDetail | null;
+  loading?: boolean;
   onClose: () => void;
 }
+
+const EMPTY_VALUE = "—";
 
 const labelSx = {
   fontSize: "0.8125rem",
@@ -39,48 +29,69 @@ const valueSx = {
   color: "#101828",
 };
 
-const inputSx = {
-  "& .MuiOutlinedInput-root": {
-    borderRadius: 1.5,
-    fontSize: "0.875rem",
-    backgroundColor: "#ffffff",
-    "& fieldset": { borderColor: "#d0d5dd" },
-    "&:hover fieldset": { borderColor: "#98a2b3" },
-    "& input": { color: "#344054" },
-    "& textarea": { color: "#344054" },
-  },
-  "& input::placeholder": { color: "#98a2b3", opacity: 1 },
-  "& textarea::placeholder": { color: "#98a2b3", opacity: 1 },
+const sectionTitleSx = {
+  fontSize: "0.8125rem",
+  fontWeight: 600,
+  color: "#101828",
+  textTransform: "uppercase" as const,
+  letterSpacing: "0.04em",
+  mb: 2,
+  pb: 1,
+  borderBottom: "1px solid #e4e7ec",
 };
 
-const readonlySelectSx = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  border: "1px solid #d0d5dd",
+const textBlockSx = {
+  border: "1px solid #e4e7ec",
   borderRadius: 1.5,
+  bgcolor: "#f9fafb",
   px: 1.75,
   py: 1.25,
-  bgcolor: "#ffffff",
-  cursor: "default",
+  fontSize: "0.875rem",
+  color: "#344054",
+  whiteSpace: "pre-wrap" as const,
 };
 
-const radioSx = {
-  color: "#d0d5dd",
-  "&.Mui-checked": { color: "#1570EF" },
-  padding: "4px 8px 4px 4px",
-};
+const formatReportDate = (dateString: string): string =>
+  new Date(dateString).toLocaleDateString("es-MX", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
 
+const formatWaitingDays = (days: number): string =>
+  days === 1 ? "1 día" : `${days} días`;
+
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <Box>
+      <Typography sx={labelSx}>{label}</Typography>
+      <Typography sx={valueSx}>{value}</Typography>
+    </Box>
+  );
+}
+
+function TextBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <Box>
+      <Typography sx={{ ...labelSx, mb: 0.75 }}>{label}</Typography>
+      <Box sx={textBlockSx}>{value}</Box>
+    </Box>
+  );
+}
+
+/**
+ * Read-only detail of a damaged item, shared by both tabs of the screen
+ * ("a recolectar" and "a reparación"). It renders exactly what
+ * `GET /supplier-portal/damaged-products/:id` returns: the supplier has no
+ * write action over damaged goods.
+ */
 export function MercanciaDanadaDrawer({
   open,
   item,
+  loading = false,
   onClose,
 }: MercanciaDanadaDrawerProps) {
-  const [activeTab, setActiveTab] = useState(0);
-
-  if (!item) return null;
-
-  const isRecolectado = item.estatus === "Recolectado";
+  if (!open) return null;
 
   return (
     <Modal
@@ -133,241 +144,113 @@ export function MercanciaDanadaDrawer({
             <Close sx={{ fontSize: 16 }} />
           </IconButton>
 
-          <StatusChip
-            label={isRecolectado ? "Recolectado" : "Por realizar"}
-            variant={isRecolectado ? "success" : "warning"}
-            startIcon={<Clock size={12} />}
-            size="default"
-          />
+          {item && (
+            <StatusChip
+              label={`${formatWaitingDays(item.waitingDays)} en espera`}
+              variant="pending"
+              startIcon={<Clock size={12} />}
+              size="default"
+            />
+          )}
         </Box>
 
         {/* Scrollable body */}
         <Box sx={{ flex: 1, overflowY: "auto", px: 3, pb: 4 }}>
-          <Typography sx={{ fontWeight: 700, fontSize: "1.375rem", color: "#101828", mb: 0.5 }}>
-            {item.dano}
-          </Typography>
-
-          <Typography sx={{ fontSize: "0.8125rem", color: "#667085", mb: 3 }}>
-            Generada por:{" "}
-            <Box component="span" sx={{ color: "#344054", fontWeight: 500 }}>
-              {item.generadaPor}
-            </Box>{" "}
-            el {item.fechaCompleta}, {item.hora}
-          </Typography>
-
-          {/* Tabs */}
-          <Tabs
-            value={activeTab}
-            onChange={(_, v) => setActiveTab(v)}
-            sx={{
-              mb: 3,
-              minHeight: 38,
-              borderBottom: "1px solid #e4e7ec",
-              "& .MuiTab-root": {
-                textTransform: "none",
-                fontSize: "0.875rem",
-                fontWeight: 500,
-                color: "#667085",
-                minHeight: 38,
-                px: 0,
-                mr: 3,
-                pb: 1.5,
-                "&.Mui-selected": { color: "#101828", fontWeight: 600 },
-              },
-              "& .MuiTabs-indicator": { backgroundColor: "#101828", height: 2 },
-            }}
-          >
-            <Tab label="Queja" />
-            <Tab label="Indicaciones" />
-            <Tab label="Solución" />
-          </Tabs>
-
-          {/* ── Tab: Queja ── */}
-          {activeTab === 0 && (
+          {loading && (
             <Box>
-              <Box sx={{ mb: 2.5 }}>
-                <Typography sx={{ ...labelSx, mb: 0.75 }}>Artículo</Typography>
-                <Box sx={readonlySelectSx}>
-                  <Typography sx={{ fontSize: "0.875rem", color: "#344054" }}>{item.articulo}</Typography>
-                  <Box component="span" sx={{ color: "#667085", fontSize: "1rem", lineHeight: 1, userSelect: "none" }}>⌄</Box>
-                </Box>
-              </Box>
-
-              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, mb: 2.5 }}>
-                <Box>
-                  <Typography sx={labelSx}>Proveedor</Typography>
-                  <Typography sx={valueSx}>{item.proveedor}</Typography>
-                </Box>
-                <Box>
-                  <Typography sx={labelSx}>Forma de entrega</Typography>
-                  <Typography sx={valueSx}>{item.formaEntrega}</Typography>
-                </Box>
-              </Box>
-
-              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 2, mb: 2.5 }}>
-                <Box>
-                  <Typography sx={{ ...labelSx, mb: 0.75 }}>Cantidad</Typography>
-                  <TextField fullWidth size="small" value={item.cantidad} slotProps={{ input: { readOnly: true } }} sx={inputSx} />
-                </Box>
-                <Box>
-                  <Typography sx={{ ...labelSx, mb: 0.75 }}>Número de serie</Typography>
-                  <TextField fullWidth size="small" value={item.numeroSerie} slotProps={{ input: { readOnly: true } }} sx={inputSx} />
-                </Box>
-              </Box>
-
-              <Box sx={{ mb: 2.5 }}>
-                <Typography sx={{ ...labelSx, mb: 0.75 }}>Queja</Typography>
-                <TextField fullWidth multiline minRows={3} value={item.descripcionDano} slotProps={{ input: { readOnly: true } }} sx={inputSx} />
-              </Box>
-
-              <Box sx={{ mb: 2.5 }}>
-                <Typography sx={{ ...labelSx, mb: 1 }}>Evidencia</Typography>
-                <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
-                  {item.evidencias.length > 0 ? (
-                    item.evidencias.map((src: string, i: number) => (
-                      <Box key={i} component="img" src={src}
-                        sx={{ width: 72, height: 72, borderRadius: 2, objectFit: "cover", border: "1px solid #e4e7ec" }}
-                      />
-                    ))
-                  ) : (
-                    <>
-                      {[0, 1, 2].map((i) => (
-                        <Box key={i} sx={{ width: 72, height: 72, borderRadius: 2, border: "1px solid #e4e7ec", bgcolor: "#f2f4f7", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <Monitor size={28} color="#98a2b3" strokeWidth={1.5} />
-                        </Box>
-                      ))}
-                      <Box sx={{ width: 72, height: 72, borderRadius: 2, border: "1.5px dashed #84CAFF", bgcolor: "#F5FBFF", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", "&:hover": { bgcolor: "#EFF8FF" }, transition: "background-color 0.15s" }}>
-                        <ImagePlus size={24} color="#1570EF" strokeWidth={1.5} />
-                      </Box>
-                    </>
-                  )}
-                </Box>
-              </Box>
-
-              <Box>
-                <Typography sx={{ ...labelSx, mb: 0.75 }}>Observaciones</Typography>
-                <TextField fullWidth size="small" placeholder="Ingrese" value={item.observaciones} slotProps={{ input: { readOnly: true } }} sx={inputSx} />
-              </Box>
+              <Skeleton variant="text" width="70%" height={32} />
+              <Skeleton variant="text" width="45%" height={20} sx={{ mb: 3 }} />
+              <Skeleton variant="rounded" height={140} sx={{ mb: 3 }} />
+              <Skeleton variant="rounded" height={200} />
             </Box>
           )}
 
-          {/* ── Tab: Indicaciones ── */}
-          {activeTab === 1 && (
-            <Box>
-              <Box sx={{ mb: 2.5 }}>
-                <Typography sx={{ ...labelSx, mb: 1 }}>¿Qué se hará con el artículo?</Typography>
-                <RadioGroup row value={item.queHaraArticulo}>
-                  {["Reparación", "Reemplazar artículo", "Cancelar venta"].map((opt) => (
-                    <FormControlLabel
-                      key={opt}
-                      value={opt}
-                      control={<Radio size="small" sx={radioSx} />}
-                      label={<Typography sx={{ fontSize: "0.875rem", color: "#344054" }}>{opt}</Typography>}
-                      sx={{ mr: 1.5 }}
-                    />
-                  ))}
-                </RadioGroup>
+          {!loading && !item && (
+            <Typography sx={{ ...valueSx, color: "#667085" }}>
+              No se pudo cargar el detalle del artículo.
+            </Typography>
+          )}
+
+          {!loading && item && (
+            <>
+              <Typography
+                sx={{ fontWeight: 700, fontSize: "1.375rem", color: "#101828", mb: 0.5 }}
+              >
+                {item.productName}
+              </Typography>
+
+              <Typography sx={{ fontSize: "0.8125rem", color: "#667085", mb: 3 }}>
+                Folio{" "}
+                <Box component="span" sx={{ color: "#344054", fontWeight: 500 }}>
+                  {item.folio}
+                </Box>{" "}
+                · Reportado el {formatReportDate(item.reportDate)}
+              </Typography>
+
+              {/* ── Artículo ── */}
+              <Typography sx={sectionTitleSx}>Artículo</Typography>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 2.5,
+                  mb: 4,
+                }}
+              >
+                <Field label="Código" value={item.productCode} />
+                <Field label="Cantidad" value={String(item.quantity)} />
+                <Field
+                  label="Número de serie"
+                  value={item.serialNumber ?? EMPTY_VALUE}
+                />
+                <Field label="Sucursal" value={item.branch.name} />
               </Box>
 
-              <Box sx={{ mb: 2.5 }}>
-                <Typography sx={{ ...labelSx, mb: 1 }}>¿Quién realizará el reemplazao?</Typography>
-                <RadioGroup row value={item.quienRealiza}>
-                  {["Proveedor", "Foly"].map((opt) => (
-                    <FormControlLabel
-                      key={opt}
-                      value={opt}
-                      control={<Radio size="small" sx={radioSx} />}
-                      label={<Typography sx={{ fontSize: "0.875rem", color: "#344054" }}>{opt}</Typography>}
-                      sx={{ mr: 1.5 }}
-                    />
-                  ))}
-                </RadioGroup>
+              {/* ── Daño ── */}
+              <Typography sx={sectionTitleSx}>Daño</Typography>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 2.5,
+                  mb: 2.5,
+                }}
+              >
+                <Field label="Origen del daño" value={item.damageOrigin} />
+                <Field label="Tipo de daño" value={item.damageType} />
               </Box>
 
-              <Box sx={{ mb: 2.5 }}>
-                <Typography sx={{ ...labelSx, mb: 0.75 }}>Domicilio en donde se recolectará el artículo</Typography>
-                <Box sx={readonlySelectSx}>
-                  <Typography sx={{ fontSize: "0.875rem", color: "#344054" }}>{item.domicilioRecoleccion}</Typography>
-                  <Box component="span" sx={{ color: "#667085", fontSize: "1rem", lineHeight: 1, userSelect: "none" }}>⌄</Box>
-                </Box>
-              </Box>
-
-              <Box sx={{ mb: 2.5 }}>
-                <Typography sx={{ ...labelSx, mb: 0.75 }}>Fecha a realizar</Typography>
-                <TextField
-                  fullWidth
-                  size="small"
-                  value={item.fechaARealizar}
-                  slotProps={{
-                    input: {
-                      readOnly: true,
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <CalendarDays size={16} color="#667085" strokeWidth={1.5} />
-                        </InputAdornment>
-                      ),
-                    },
-                  }}
-                  sx={inputSx}
+              <Box sx={{ display: "grid", gap: 2.5, mb: 4 }}>
+                <TextBlock
+                  label="Descripción del daño"
+                  value={item.damageDescription}
+                />
+                <TextBlock
+                  label="Observaciones"
+                  value={item.observations ?? EMPTY_VALUE}
                 />
               </Box>
 
-              <Box sx={{ mb: 2.5 }}>
-                <Typography sx={{ ...labelSx, mb: 0.75 }}>Tipo de daño</Typography>
-                <Box sx={readonlySelectSx}>
-                  <Typography sx={{ fontSize: "0.875rem", color: "#344054" }}>{item.tipoDano}</Typography>
-                  <Box component="span" sx={{ color: "#667085", fontSize: "1rem", lineHeight: 1, userSelect: "none" }}>⌄</Box>
-                </Box>
+              {/* ── Seguimiento ── */}
+              <Typography sx={sectionTitleSx}>Seguimiento</Typography>
+              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2.5 }}>
+                <Field
+                  label="Fecha de reporte"
+                  value={formatReportDate(item.reportDate)}
+                />
+                <Field
+                  label="Tiempo en espera"
+                  value={formatWaitingDays(item.waitingDays)}
+                />
+                {/* Only the "a reparación" tab carries a cost assigned to the supplier. */}
+                {item.repairCost !== null && (
+                  <Field
+                    label="Costo de reparación"
+                    value={numeral(item.repairCost).format("$0,0.00")}
+                  />
+                )}
               </Box>
-
-              <Box>
-                <Typography sx={{ ...labelSx, mb: 0.75 }}>Autorizó</Typography>
-                <Box sx={readonlySelectSx}>
-                  <Typography sx={{ fontSize: "0.875rem", color: "#344054" }}>{item.autorizo}</Typography>
-                  <Box component="span" sx={{ color: "#667085", fontSize: "1rem", lineHeight: 1, userSelect: "none" }}>⌄</Box>
-                </Box>
-              </Box>
-            </Box>
-          )}
-
-          {/* ── Tab: Solución ── */}
-          {activeTab === 2 && (
-            <Box>
-              <Box sx={{ mb: 2.5 }}>
-                <Typography sx={{ ...labelSx, mb: 0.75 }}>Seleccione la solución entregada</Typography>
-                <Box sx={readonlySelectSx}>
-                  <Typography sx={{ fontSize: "0.875rem", color: "#344054" }}>{item.solucionEntregada}</Typography>
-                  <Box component="span" sx={{ color: "#667085", fontSize: "1rem", lineHeight: 1, userSelect: "none" }}>⌄</Box>
-                </Box>
-              </Box>
-
-              <Box
-                sx={{
-                  mb: 2.5,
-                  border: "1.5px dashed #84CAFF",
-                  borderRadius: 2,
-                  bgcolor: "#F5FBFF",
-                  py: 3,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 1,
-                  cursor: "pointer",
-                  "&:hover": { bgcolor: "#EFF8FF" },
-                  transition: "background-color 0.15s",
-                }}
-              >
-                <Upload size={22} color="#1570EF" strokeWidth={1.5} />
-                <Typography sx={{ fontSize: "0.875rem", fontWeight: 500, color: "#1570EF" }}>
-                  Cargar carta de aceptación
-                </Typography>
-              </Box>
-
-              <Box>
-                <Typography sx={{ ...labelSx, mb: 0.75 }}>Autorizado por</Typography>
-                <TextField fullWidth size="small" value={item.autorizadoPor} slotProps={{ input: { readOnly: true } }} sx={inputSx} />
-              </Box>
-            </Box>
+            </>
           )}
         </Box>
       </Paper>

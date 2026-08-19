@@ -1,4 +1,5 @@
 import { get, put, post } from "./api";
+import type { PaginatedResponse } from "@/types/pagination";
 
 export interface OrderItem {
   id: number;
@@ -90,14 +91,6 @@ export interface Order {
   createdAt: string;
   updatedAt: string | null;
   items: OrderItem[];
-}
-
-export interface PaginatedResponse<T> {
-  rows: T[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
 }
 
 export interface OrderStats {

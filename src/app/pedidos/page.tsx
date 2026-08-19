@@ -11,7 +11,8 @@ import type { StatusChipVariant } from "@/components/StatusChip/StatusChip";
 import { Stack } from "@mui/material";
 import { StatsCardGroup, StatsCardData } from "@/components/StatsCard/StatsCard";
 import { useApi } from "@/hooks/useApi";
-import { ordersService, Order, PaginatedResponse, OrderStats } from "@/services/orders.service";
+import { ordersService, Order, OrderStats } from "@/services/orders.service";
+import type { PaginatedResponse } from "@/types/pagination";
 import { useNotification } from "@/contexts/NotificationContext";
 import { useRouter } from "next/navigation";
 
