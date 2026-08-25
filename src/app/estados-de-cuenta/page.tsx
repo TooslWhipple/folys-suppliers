@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Box, Typography, Paper, Stack, Divider, Drawer, IconButton } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import {
@@ -12,18 +12,17 @@ import {
   FileText,
   X,
 } from "lucide-react";
-import Link from "next/link";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Title } from "@/components/Title/Title";
 import { TabFilters } from "@/components/TabFilters/TabFilters";
 import { StatusChip } from "@/components/StatusChip/StatusChip";
 import { colors } from "@/lib/theme";
+import { useApi } from "@/hooks/useApi";
 import {
-  estadoCuentaDetalles,
-  estadoCuentaPagos,
-  type EstadoCuentaDetalleItem,
-  type EstadoCuentaPagoItem,
-} from "@/mocks/data";
+  invoicesService,
+  type AccountStatementPayment,
+  type AccountStatementResponse,
+} from "@/services/invoices.service";
 import numeral from "numeral";
 import type { TabOption } from "@/components/TabFilters/TabFilters";
 
@@ -37,13 +36,27 @@ const TABS: TabOption[] = [
   { label: "Pagos", value: "pagos" },
 ];
 
-const STATUS_VARIANTS: Record<string, "warning" | "success"> = {
-  pendiente: "warning",
-  pagado: "success",
+const PAYMENT_STATUS_VARIANTS: Record<string, "warning" | "success"> = {
+  pending: "warning",
+  paid: "success",
+};
+
+const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  pending: "Pendiente",
+  paid: "Pagado",
 };
 
 const DCOL = "180px 1fr 140px 140px";
 const PCOL = "1fr 160px 140px";
+
+const formatDate = (dateString: string): string => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString("es-MX", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+};
 
 const StatsCard = styled(Paper)({
   backgroundColor: colors.background.sidebar,
@@ -81,21 +94,37 @@ const TDataRow = styled(Box, { shouldForwardProp: (prop) => prop !== "clickable"
   ...(clickable && { cursor: "pointer", "&:hover": { backgroundColor: colors.background.main } }),
 }));
 
-const totalCargo = estadoCuentaDetalles.reduce((s, i) => s + (i.cargo ?? 0), 0);
-const totalVenta = estadoCuentaDetalles.reduce((s, i) => s + (i.venta ?? 0), 0);
-const grandTotal = totalVenta - totalCargo;
-
 export default function EstadosCuentaPage() {
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 3, 1));
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [activeTab, setActiveTab] = useState("detalles");
-  const [selectedPago, setSelectedPago] = useState<EstadoCuentaPagoItem | null>(null);
+  const [selectedPago, setSelectedPago] = useState<AccountStatementPayment | null>(null);
+
+  const { execute, loading, data } = useApi<AccountStatementResponse>();
 
   const monthLabel = `${MESES[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+  const monthParam = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}`;
 
   const prevMonth = () =>
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   const nextMonth = () =>
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+
+  const loadStatement = useCallback(async () => {
+    await execute(() => invoicesService.getAccountStatement({ month: monthParam }));
+  }, [execute, monthParam]);
+
+  useEffect(() => {
+    loadStatement();
+  }, [loadStatement]);
+
+  const entries = useMemo(() => data?.entries ?? [], [data]);
+  const payments = useMemo(() => data?.payments ?? [], [data]);
+  const summary = data?.summary;
+
+  const totalCargo = summary?.totalCargos ?? 0;
+  const totalVenta = summary?.totalVentas ?? 0;
+  const grandTotal = totalVenta - totalCargo;
+  const isPendiente = (summary?.pendingAmount ?? 0) > 0;
 
   return (
     <MainLayout>
@@ -109,7 +138,7 @@ export default function EstadosCuentaPage() {
               Pendiente de cobro
             </Typography>
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
-              {numeral(grandTotal).format("$0,0.00")}
+              {numeral(summary?.pendingAmount ?? 0).format("$0,0.00")}
             </Typography>
           </StatsCard>
           <StatsCard>
@@ -117,7 +146,7 @@ export default function EstadosCuentaPage() {
               Pendiente por facturar
             </Typography>
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
-              {numeral(290123.14).format("$0,0.00")}
+              {numeral(summary?.pendienteFacturar ?? 0).format("$0,0.00")}
             </Typography>
           </StatsCard>
         </Box>
@@ -151,13 +180,13 @@ export default function EstadosCuentaPage() {
                 px: 2,
                 py: 0.5,
                 borderRadius: "20px",
-                border: "1.5px solid #F97316",
-                color: "#F97316",
+                border: `1.5px solid ${isPendiente ? "#F97316" : "#22C55E"}`,
+                color: isPendiente ? "#F97316" : "#22C55E",
                 fontSize: "0.875rem",
                 fontWeight: 600,
               }}
             >
-              Pendiente
+              {isPendiente ? "Pendiente" : "Al día"}
             </Box>
           </Box>
 
@@ -184,39 +213,36 @@ export default function EstadosCuentaPage() {
                 </Typography>
               </THeaderRow>
 
-              {estadoCuentaDetalles.map((item: EstadoCuentaDetalleItem) => (
-                <TDataRow key={item.id}>
-                  <Typography variant="body2">{item.fecha}</Typography>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    {item.tipo === "pedido" ? (
-                      <ArrowDownRight size={16} color="#22C55E" />
-                    ) : (
-                      <ArrowUpRight size={16} color="#DC2626" />
-                    )}
-                    <Typography variant="body2">
-                      {item.tipo === "pedido" ? (
-                        <>
-                          Pedido{" "}
-                          <Link href={`/facturas/${item.pedidoId}`} style={{ textDecoration: "none" }}>
-                            <Box component="span" sx={{ color: "#1570EF", "&:hover": { textDecoration: "underline" } }}>
-                              {item.pedidoId}
-                            </Box>
-                          </Link>{" "}
-                          {item.concepto}
-                        </>
+              {!loading && entries.length === 0 && (
+                <Box sx={{ px: 3, py: 4, textAlign: "center" }}>
+                  <Typography variant="body2" sx={{ color: colors.text.secondary }}>
+                    No hay movimientos en este mes
+                  </Typography>
+                </Box>
+              )}
+
+              {entries.map((item) => {
+                const esPedido = item.tipo === "pedido";
+                return (
+                  <TDataRow key={item.id}>
+                    <Typography variant="body2">{formatDate(item.fecha)}</Typography>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      {esPedido ? (
+                        <ArrowDownRight size={16} color="#22C55E" />
                       ) : (
-                        item.concepto
+                        <ArrowUpRight size={16} color="#DC2626" />
                       )}
+                      <Typography variant="body2">{item.concepto}</Typography>
+                    </Box>
+                    <Typography variant="body2" sx={{ textAlign: "right" }}>
+                      {!esPedido ? numeral(item.monto).format("$0,0.00") : ""}
                     </Typography>
-                  </Box>
-                  <Typography variant="body2" sx={{ textAlign: "right" }}>
-                    {item.cargo ? numeral(item.cargo).format("$0,0.00") : ""}
-                  </Typography>
-                  <Typography variant="body2" sx={{ textAlign: "right" }}>
-                    {item.venta ? numeral(item.venta).format("$0,0.00") : ""}
-                  </Typography>
-                </TDataRow>
-              ))}
+                    <Typography variant="body2" sx={{ textAlign: "right" }}>
+                      {esPedido ? numeral(item.monto).format("$0,0.00") : ""}
+                    </Typography>
+                  </TDataRow>
+                );
+              })}
 
               {/* Subtotal */}
               <Box
@@ -282,18 +308,28 @@ export default function EstadosCuentaPage() {
                 </Typography>
               </THeaderRow>
 
-              {estadoCuentaPagos.map((pago: EstadoCuentaPagoItem) => (
+              {!loading && payments.length === 0 && (
+                <Box sx={{ px: 3, py: 4, textAlign: "center" }}>
+                  <Typography variant="body2" sx={{ color: colors.text.secondary }}>
+                    No hay pagos registrados en este mes
+                  </Typography>
+                </Box>
+              )}
+
+              {payments.map((pago) => (
                 <TDataRow
                   key={pago.id}
                   col={PCOL}
                   clickable
                   onClick={() => setSelectedPago(pago)}
                 >
-                  <Typography variant="body2">{pago.fechaPago}</Typography>
+                  <Typography variant="body2">
+                    {formatDate(pago.status === "paid" ? pago.fechaPago : pago.fechaProgramada ?? pago.fechaPago)}
+                  </Typography>
                   <Box>
                     <StatusChip
-                      label={pago.estatus === "pendiente" ? "Pendiente" : "Pagado"}
-                      variant={STATUS_VARIANTS[pago.estatus]}
+                      label={PAYMENT_STATUS_LABELS[pago.status]}
+                      variant={PAYMENT_STATUS_VARIANTS[pago.status]}
                     />
                   </Box>
                   <Typography variant="body2" sx={{ textAlign: "right" }}>
@@ -342,7 +378,7 @@ export default function EstadosCuentaPage() {
               Consulta los detalles del pago realizado
             </Typography>
 
-            {/* Info box: Proveedor | Estado de cuenta */}
+            {/* Info box: Estado de cuenta | Estatus */}
             <Box
               sx={{
                 display: "flex",
@@ -355,19 +391,19 @@ export default function EstadosCuentaPage() {
             >
               <Box sx={{ flex: 1, p: 2 }}>
                 <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", mb: 0.5 }}>
-                  Proveedor
+                  Estado de cuenta
                 </Typography>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                  {selectedPago.proveedor}
+                  {monthLabel}
                 </Typography>
               </Box>
               <Divider orientation="vertical" flexItem sx={{ borderColor: colors.border }} />
               <Box sx={{ flex: 1, p: 2 }}>
                 <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", mb: 0.5 }}>
-                  Estado de cuenta
+                  Estatus
                 </Typography>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                  {selectedPago.estadoCuenta}
+                  {PAYMENT_STATUS_LABELS[selectedPago.status]}
                 </Typography>
               </Box>
             </Box>
@@ -382,23 +418,27 @@ export default function EstadosCuentaPage() {
               </Typography>
             </Box>
 
-            {/* Notas */}
+            {/* Descripción */}
             <Box sx={{ mb: 2 }}>
               <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", mb: 0.5 }}>
-                Notas
+                Descripción
               </Typography>
               <Typography variant="body2" sx={{ color: colors.text.secondary }}>
-                {selectedPago.notas}
+                {selectedPago.descripcion}
               </Typography>
             </Box>
 
-            {/* Fecha del pago */}
+            {/* Fecha del pago / programada */}
             <Box sx={{ mb: 2.5 }}>
               <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", mb: 0.5 }}>
-                Fecha del pago
+                {selectedPago.status === "paid" ? "Fecha del pago" : "Fecha programada"}
               </Typography>
               <Typography variant="body2">
-                {selectedPago.fechaPago}
+                {formatDate(
+                  selectedPago.status === "paid"
+                    ? selectedPago.fechaPago
+                    : selectedPago.fechaProgramada ?? selectedPago.fechaPago
+                )}
               </Typography>
             </Box>
 
@@ -406,45 +446,52 @@ export default function EstadosCuentaPage() {
             <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>
               Comprobante
             </Typography>
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 2,
-                p: 2,
-                border: `1px solid ${colors.border}`,
-                borderRadius: "10px",
-              }}
-            >
+            {selectedPago.comprobanteUrl ? (
               <Box
                 sx={{
-                  width: 40,
-                  height: 40,
-                  bgcolor: "#EFF6FF",
-                  borderRadius: "8px",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
+                  gap: 2,
+                  p: 2,
+                  border: `1px solid ${colors.border}`,
+                  borderRadius: "10px",
                 }}
               >
-                <FileText size={20} color="#3B82F6" />
-              </Box>
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {selectedPago.comprobante}
+                <Box
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    bgcolor: "#EFF6FF",
+                    borderRadius: "8px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <FileText size={20} color="#3B82F6" />
+                </Box>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    Comprobante de pago
+                  </Typography>
+                </Box>
+                <Typography
+                  component="a"
+                  href={selectedPago.comprobanteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  variant="body2"
+                  sx={{ color: "#1570EF", fontWeight: 600, cursor: "pointer", flexShrink: 0, textDecoration: "none" }}
+                >
+                  Descargar
                 </Typography>
-                <Typography variant="caption" sx={{ color: colors.text.secondary }}>
-                  Archivo PDF
-                </Typography>
               </Box>
-              <Typography
-                variant="body2"
-                sx={{ color: "#1570EF", fontWeight: 600, cursor: "pointer", flexShrink: 0 }}
-              >
-                Descargar
+            ) : (
+              <Typography variant="body2" sx={{ color: colors.text.secondary }}>
+                Sin comprobante todavía
               </Typography>
-            </Box>
+            )}
           </Box>
         )}
       </Drawer>
