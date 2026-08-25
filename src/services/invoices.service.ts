@@ -1,23 +1,42 @@
 import { get } from "@/lib/api/client";
 
+export type AccountStatementEntryTipo =
+  | "pedido"
+  | "cargo_discrecional"
+  | "costo_reparacion";
+
 export interface AccountStatementEntry {
   id: string;
   fecha: string;
   concepto: string;
-  tipo: "venta" | "cargo";
-  cargo: number;
-  venta: number;
+  tipo: AccountStatementEntryTipo;
+  monto: number;
+}
+
+export type AccountStatementPaymentStatus = "pending" | "paid";
+
+export interface AccountStatementPayment {
+  id: number;
+  descripcion: string;
+  monto: number;
+  fechaPago: string;
+  fechaProgramada: string | null;
+  status: AccountStatementPaymentStatus;
+  comprobanteUrl: string | null;
 }
 
 export interface AccountStatementSummary {
-  totalCargos: number;
   totalVentas: number;
+  totalCargos: number;
+  totalPagos: number;
   balance: number;
   pendingAmount: number;
+  pendienteFacturar: number;
 }
 
 export interface AccountStatementResponse {
   entries: AccountStatementEntry[];
+  payments: AccountStatementPayment[];
   summary: AccountStatementSummary;
   month: string;
   pagination: {
@@ -47,10 +66,13 @@ export const invoicesService = {
     const queryParams: Record<string, string | number> = { page, limit };
     if (month) queryParams.month = month;
 
-    return get<AccountStatementResponse>(
-      `/supplier-portal/account-statement`,
-      { params: queryParams }
-    );
+    const response = await get<{
+      success: boolean;
+      data: AccountStatementResponse;
+      message?: string;
+    }>(`/supplier-portal/account-statement`, { params: queryParams });
+
+    return response.data;
   },
 };
 
