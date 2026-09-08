@@ -16,11 +16,13 @@ import {
   type DamagedProductToRepair,
   type DamagedProductDetail,
   type DamagedProductStats,
+  type DamagedProductDiscountStatus,
 } from "@/services/damaged-products.service";
 import type { PaginatedResponse } from "@/types/pagination";
 import { useDebouncedValue } from "./useDebouncedValue";
 import type { TabOption } from "@/components/TabFilters/TabFilters";
 import type { Column } from "@/components/TableCrud/TableCrud";
+import type { StatusChipVariant } from "@/components/StatusChip/StatusChip";
 
 const TAB_TO_COLLECT = "to-collect";
 const TAB_TO_REPAIR = "to-repair";
@@ -41,6 +43,19 @@ type MercanciaRow = {
   fechaReporte: string;
   tiempoEspera: number;
   costoReparacion?: number;
+  discountStatus?: DamagedProductDiscountStatus;
+};
+
+const DISCOUNT_STATUS_LABELS: Record<string, string> = {
+  not_discounted: "Pendiente",
+  discounted_pending_pickup: "Descontado",
+  collected: "Recolectado",
+};
+
+const DISCOUNT_STATUS_CHIP_VARIANTS: Record<string, StatusChipVariant> = {
+  not_discounted: "pending",
+  discounted_pending_pickup: "info",
+  collected: "success",
 };
 
 const formatDate = (dateString: string): string => {
@@ -62,6 +77,7 @@ const mapToRow = (
   fechaReporte: formatDate(item.reportDate),
   tiempoEspera: item.waitingDays,
   costoReparacion: "repairCost" in item ? item.repairCost : undefined,
+  discountStatus: "discountStatus" in item ? item.discountStatus : undefined,
 });
 
 const BASE_COLUMNS: Column<MercanciaRow>[] = [
@@ -86,6 +102,15 @@ const REPAIR_COST_COLUMN: Column<MercanciaRow> = {
   type: "currency",
   size: "md",
   align: "right",
+};
+
+const DISCOUNT_STATUS_COLUMN: Column<MercanciaRow> = {
+  id: "discountStatus",
+  label: "Descuento",
+  type: "chip",
+  size: "sm",
+  chipLabelMap: DISCOUNT_STATUS_LABELS,
+  chipVariantMap: DISCOUNT_STATUS_CHIP_VARIANTS,
 };
 
 export default function MercanciaDanadaPage() {
@@ -173,7 +198,7 @@ export default function MercanciaDanadaPage() {
     () =>
       activeTab === TAB_TO_REPAIR
         ? [...BASE_COLUMNS, REPAIR_COST_COLUMN]
-        : BASE_COLUMNS,
+        : [...BASE_COLUMNS, DISCOUNT_STATUS_COLUMN],
     [activeTab]
   );
 

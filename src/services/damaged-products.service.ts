@@ -2,10 +2,19 @@ import { get } from "@/lib/api/client";
 import type { PaginatedResponse } from "@/types/pagination";
 
 /**
- * Row of the "a recolectar" tab: items marked to be returned to the supplier
- * that already have their acceptance letter (CAR) issued.
+ * Whether the "return to supplier" item has already been charged to the
+ * supplier: `not_discounted` (no charge yet), `discounted_pending_pickup`
+ * (charge created, still sitting at Foly) or `collected` (picked up).
  */
-export interface DamagedProductToCollect {
+export type DamagedProductDiscountStatus =
+  | "not_discounted"
+  | "discounted_pending_pickup"
+  | "collected";
+
+/**
+ * Fields shared by both damaged-goods tabs.
+ */
+interface DamagedProductListItemBase {
   id: number;
   folio: string;
   productCode: string;
@@ -19,10 +28,19 @@ export interface DamagedProductToCollect {
 }
 
 /**
- * Row of the "a reparación" tab: same fields as "a recolectar" plus the repair
- * cost that was assigned to the supplier.
+ * Row of the "a recolectar" tab: items marked to be returned to the supplier
+ * that already have their acceptance letter (CAR) issued.
  */
-export interface DamagedProductToRepair extends DamagedProductToCollect {
+export interface DamagedProductToCollect extends DamagedProductListItemBase {
+  discountStatus: DamagedProductDiscountStatus;
+}
+
+/**
+ * Row of the "a reparación" tab: same base fields as "a recolectar" plus the
+ * repair cost that was assigned to the supplier. `discountStatus` does not
+ * apply here (that tab is not the `RETURN_TO_SUPPLIER` disposition).
+ */
+export interface DamagedProductToRepair extends DamagedProductListItemBase {
   repairCost: number;
 }
 
