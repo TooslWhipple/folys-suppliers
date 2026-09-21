@@ -1,4 +1,4 @@
-import { get, put, post } from "./api";
+import { get, put } from "./api";
 import type { PaginatedResponse } from "@/types/pagination";
 
 export interface OrderItem {
@@ -116,26 +116,6 @@ export interface UpdateOrderData {
   items: UpdateOrderItemData[];
 }
 
-export interface Invoice {
-  id: number;
-  orderId: number;
-  subtotal: string;
-  iva: string;
-  total: string;
-  pdfUrl: string | null;
-  xmlUrl: string | null;
-  status: string;
-  createdAt: string;
-}
-
-export interface CreateInvoiceData {
-  subtotal: string;
-  iva: string;
-  total: string;
-  pdfFile?: File | null;
-  xmlFile?: File | null;
-}
-
 export interface DeliveryMethod {
   id: number;
   code: string;
@@ -216,45 +196,6 @@ export const ordersService = {
       data: { success: boolean; message: string };
       message?: string;
     }>(`/supplier-portal/orders/${orderId}`, data);
-    return response.data;
-  },
-
-  /**
-   * Get invoices for an order
-   * @param orderId - Order ID
-   */
-  async getOrderInvoices(orderId: number): Promise<Invoice[]> {
-    const response = await get<{
-      success: boolean;
-      data: Invoice[];
-      message?: string;
-    }>(`/supplier-portal/orders/${orderId}/invoices`);
-    return response.data;
-  },
-
-  /**
-   * Create a new invoice for an order
-   * @param orderId - Order ID
-   * @param data - Invoice data
-   */
-  async createInvoice(orderId: number, data: CreateInvoiceData): Promise<Invoice> {
-    const formData = new FormData();
-    formData.append('subtotal', data.subtotal);
-    formData.append('iva', data.iva);
-    formData.append('total', data.total);
-
-    if (data.pdfFile) {
-      formData.append('pdf', data.pdfFile);
-    }
-    if (data.xmlFile) {
-      formData.append('xml', data.xmlFile);
-    }
-
-    const response = await post<{
-      success: boolean;
-      data: Invoice;
-      message?: string;
-    }>(`/supplier-portal/orders/${orderId}/invoices`, formData);
     return response.data;
   },
 

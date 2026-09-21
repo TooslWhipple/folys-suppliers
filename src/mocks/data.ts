@@ -596,57 +596,6 @@ export const actividadReciente: ActivityItem[] = [
   },
 ];
 
-export interface FacturaItem {
-  id: string;
-  fecha: string;
-  pedido: string;
-  estatus: "pendiente" | "pagado";
-  total: number;
-}
-
-export const facturasItems: FacturaItem[] = [
-  { id: "1",  fecha: "25, Abril de 2026", pedido: "12345", estatus: "pendiente", total: 290123.14 },
-  { id: "2",  fecha: "25, Abril de 2026", pedido: "12345", estatus: "pagado",    total: 290123.14 },
-  { id: "3",  fecha: "25, Abril de 2026", pedido: "12345", estatus: "pagado",    total: 290123.14 },
-  { id: "4",  fecha: "25, Abril de 2026", pedido: "12345", estatus: "pagado",    total: 290123.14 },
-  { id: "5",  fecha: "25, Abril de 2026", pedido: "12345", estatus: "pagado",    total: 290123.14 },
-  { id: "6",  fecha: "25, Abril de 2026", pedido: "12345", estatus: "pagado",    total: 290123.14 },
-  { id: "7",  fecha: "25, Abril de 2026", pedido: "12345", estatus: "pagado",    total: 290123.14 },
-  { id: "8",  fecha: "25, Abril de 2026", pedido: "12345", estatus: "pagado",    total: 290123.14 },
-  { id: "9",  fecha: "25, Abril de 2026", pedido: "12345", estatus: "pagado",    total: 290123.14 },
-  { id: "10", fecha: "25, Abril de 2026", pedido: "12345", estatus: "pagado",    total: 290123.14 },
-  { id: "11", fecha: "25, Abril de 2026", pedido: "12345", estatus: "pagado",    total: 290123.14 },
-  { id: "12", fecha: "25, Abril de 2026", pedido: "12345", estatus: "pagado",    total: 290123.14 },
-  { id: "13", fecha: "25, Abril de 2026", pedido: "12345", estatus: "pagado",    total: 290123.14 },
-  { id: "14", fecha: "25, Abril de 2026", pedido: "12345", estatus: "pagado",    total: 290123.14 },
-  { id: "15", fecha: "25, Abril de 2026", pedido: "12345", estatus: "pagado",    total: 290123.14 },
-];
-
-export interface SolicitudDocItem {
-  id: string;
-  tipo: string;
-  descripcion: string;
-  facturas: string;
-  monto: number;
-}
-
-export const solicitudesDocumentos: SolicitudDocItem[] = [
-  {
-    id: "1",
-    tipo: "Nota de crédito",
-    descripcion: "Ajuste de costo de artículos relacionada a las facturas",
-    facturas: "123456, 123190",
-    monto: 19980.40,
-  },
-  {
-    id: "2",
-    tipo: "Nota de crédito",
-    descripcion: "Ajuste de costo de artículos relacionada a las facturas",
-    facturas: "931334.",
-    monto: 32309.80,
-  },
-];
-
 export interface EstadoCuentaDetalleItem {
   id: string;
   fecha: string;
@@ -723,46 +672,3 @@ export const estadoCuentaPagos: EstadoCuentaPagoItem[] = [
     comprobante: "BBVA Comprobante de pago",
   },
 ];
-
-export interface FacturaPedidoRow {
-  id: string;
-  pedido: string;
-  fecha: string;
-  almacen: string;
-  articulosSolicitados: number;
-  articulosEntregados: number | null;
-  estatus: "pendiente" | "surtido" | "cancelado";
-  pago: "pendiente" | "pagado";
-  total: number;
-}
-
-export interface FacturaDetalleData {
-  id: string;
-  numero: string;
-  fechaGenerada: string;
-  pago: "pendiente" | "pagado";
-  pedidos: FacturaPedidoRow[];
-}
-
-export const facturasDetalle: Record<string, FacturaDetalleData> = {
-  "123456": {
-    id: "123456",
-    numero: "123456",
-    fechaGenerada: "15 de Agosto, 2025",
-    pago: "pendiente",
-    pedidos: [
-      { id: "1", pedido: "12345", fecha: "01, Julio de 2025",  almacen: "Bodega", articulosSolicitados: 15, articulosEntregados: null, estatus: "pendiente", pago: "pendiente", total: 290123.14 },
-      { id: "2", pedido: "12345", fecha: "20, Junio de 2025",  almacen: "Bodega", articulosSolicitados: 22, articulosEntregados: null, estatus: "pendiente", pago: "pendiente", total: 290123.14 },
-      { id: "3", pedido: "12345", fecha: "15, Junio de 2025",  almacen: "Bodega", articulosSolicitados: 15, articulosEntregados: 15,   estatus: "surtido",   pago: "pendiente", total: 290123.14 },
-    ],
-  },
-  "321929": {
-    id: "321929",
-    numero: "321929",
-    fechaGenerada: "11 de Junio, 2025",
-    pago: "pendiente",
-    pedidos: [
-      { id: "1", pedido: "12345", fecha: "11, Junio de 2025",  almacen: "Bodega", articulosSolicitados: 9,  articulosEntregados: 9,    estatus: "surtido",   pago: "pendiente", total: 130569.30 },
-    ],
-  },
-};
