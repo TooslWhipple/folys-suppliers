@@ -1,9 +1,4 @@
-import { facturasDetalle } from "@/mocks/data";
 import { FacturaDetalleClient } from "./FacturaDetalleClient";
-
-export function generateStaticParams() {
-  return Object.keys(facturasDetalle).map((id) => ({ id }));
-}
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -11,7 +6,7 @@ interface PageProps {
 
 export default async function FacturaDetallePage({ params }: PageProps) {
   const { id } = await params;
-  const factura = facturasDetalle[id] || null;
+  const invoiceId = parseInt(id, 10);
 
-  return <FacturaDetalleClient factura={factura} id={id} />;
+  return <FacturaDetalleClient invoiceId={invoiceId} />;
 }

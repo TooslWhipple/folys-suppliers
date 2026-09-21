@@ -1,36 +1,52 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Box, Typography, Paper, Stack, Divider, IconButton } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { ArrowLeft } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { TabFilters } from "@/components/TabFilters/TabFilters";
 import { StatusChip } from "@/components/StatusChip/StatusChip";
 import { colors } from "@/lib/theme";
-import { type FacturaDetalleData, type FacturaPedidoRow } from "@/mocks/data";
+import { useApi } from "@/hooks/useApi";
+import { useNotification } from "@/contexts/NotificationContext";
+import {
+  invoicesService,
+  type SupplierInvoiceDetail,
+  type SupplierInvoiceEstatus,
+} from "@/services/invoices.service";
 import numeral from "numeral";
-import type { TabOption } from "@/components/TabFilters/TabFilters";
 
-const TABS: TabOption[] = [
-  { label: "Pedidos", value: "pedidos" },
-  { label: "Archivos", value: "archivos" },
-];
-
-const ESTATUS_VARIANTS: Record<string, "warning" | "success" | "error"> = {
-  pendiente: "warning",
-  surtido: "success",
-  cancelado: "error",
-};
-
-const PAGO_VARIANTS: Record<string, "warning" | "success"> = {
+const STATUS_VARIANTS: Record<SupplierInvoiceEstatus, "warning" | "success"> = {
   pendiente: "warning",
   pagado: "success",
 };
 
-const COL = "80px 150px 150px 130px 140px 120px 120px 120px";
+const STATUS_LABELS: Record<SupplierInvoiceEstatus, string> = {
+  pendiente: "Pendiente",
+  pagado: "Pagado",
+};
+
+const formatDate = (dateString: string): string => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString("es-MX", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+};
+
+const COL = "160px 180px 1fr 140px";
+
+const StatsCard = styled(Paper)({
+  backgroundColor: colors.background.sidebar,
+  borderRadius: "12px",
+  border: `1px solid ${colors.border}`,
+  boxShadow: "none",
+  padding: "20px 24px",
+  flex: 1,
+});
 
 const TableCard = styled(Paper)({
   backgroundColor: colors.background.sidebar,
@@ -58,18 +74,58 @@ const TDataRow = styled(Box)({
   "&:last-child": { borderBottom: "none" },
 });
 
+const EmptyState = ({ children }: { children: string }) => (
+  <Box sx={{ py: 6, textAlign: "center" }}>
+    <Typography variant="body2" sx={{ color: colors.text.secondary }}>
+      {children}
+    </Typography>
+  </Box>
+);
+
+const HeaderField = ({ label, value }: { label: string; value: string }) => (
+  <Box>
+    <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block" }}>
+      {label}
+    </Typography>
+    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+      {value}
+    </Typography>
+  </Box>
+);
+
 interface FacturaDetalleClientProps {
-  factura: FacturaDetalleData | null;
-  id: string;
+  invoiceId: number;
 }
 
-export function FacturaDetalleClient({ factura, id }: FacturaDetalleClientProps) {
+export function FacturaDetalleClient({ invoiceId }: FacturaDetalleClientProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("pedidos");
+  const { showError } = useNotification();
+  const { execute, loading, error, data: factura } = useApi<SupplierInvoiceDetail>();
 
-  const grandTotal = factura
-    ? factura.pedidos.reduce((sum, row) => sum + row.total, 0)
-    : 0;
+  const isValidId = Number.isInteger(invoiceId) && invoiceId > 0;
+
+  // The API answers 404 when the invoice does not belong to the supplier;
+  // that case is rendered inline as "no encontrada" instead of a toast.
+  const loadInvoice = useCallback(async () => {
+    await execute(() => invoicesService.getInvoice(invoiceId), {
+      showErrorNotification: false,
+      onError: (apiError) => {
+        if (apiError.status !== 404) {
+          showError(apiError.message);
+        }
+      },
+    });
+  }, [execute, invoiceId, showError]);
+
+  useEffect(() => {
+    if (isValidId) {
+      loadInvoice();
+    }
+  }, [isValidId, loadInvoice]);
+
+  const showNotFound = !isValidId || error?.status === 404;
+  const showLoadError = !showNotFound && !loading && error !== null;
+  const totalAbonos = factura?.abonos.reduce((sum, abono) => sum + abono.monto, 0) ?? 0;
 
   return (
     <MainLayout>
@@ -89,137 +145,135 @@ export function FacturaDetalleClient({ factura, id }: FacturaDetalleClientProps)
             </Typography>
           </Link>
           <Typography variant="body2" sx={{ color: colors.text.secondary }}>›</Typography>
-          <Typography variant="body2">{id}</Typography>
+          <Typography variant="body2">{factura?.folio ?? (isValidId ? invoiceId : "—")}</Typography>
         </Box>
 
-        {/* Header */}
-        {factura && (
-          <Box>
-            <Typography variant="caption" sx={{ color: colors.text.secondary }}>
-              Factura
-            </Typography>
-            <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
-              Factura {factura.numero}
-            </Typography>
-            <Typography variant="body2" sx={{ color: colors.text.secondary, mb: 1.5 }}>
-              Generada el {factura.fechaGenerada}
-            </Typography>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                Pago:
+        {loading && <EmptyState>Cargando factura…</EmptyState>}
+
+        {showNotFound && <EmptyState>Factura no encontrada</EmptyState>}
+
+        {showLoadError && <EmptyState>No se pudo cargar la factura</EmptyState>}
+
+        {!loading && factura && (
+          <>
+            {/* Header */}
+            <Box>
+              <Typography variant="caption" sx={{ color: colors.text.secondary }}>
+                Factura
               </Typography>
-              <Typography variant="body2" sx={{ color: "#F97316", fontWeight: 600 }}>
-                {factura.pago === "pendiente" ? "Pendiente" : "Pagado"}
+              <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
+                Factura {factura.folio}
               </Typography>
-            </Box>
-          </Box>
-        )}
-
-        <Divider sx={{ borderColor: colors.border }} />
-
-        {/* Tabs */}
-        <Box>
-          <TabFilters tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} />
-        </Box>
-
-        {/* Pedidos tab */}
-        {activeTab === "pedidos" && factura && (
-          <TableCard>
-            <Box sx={{ overflowX: "auto" }}>
-              <Box sx={{ minWidth: 900 }}>
-                <THeaderRow>
-                  <Typography variant="caption" sx={{ color: colors.text.secondary, fontWeight: 500 }}>
-                    Pedido
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: colors.text.secondary, fontWeight: 500 }}>
-                    Fecha
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: colors.text.secondary, fontWeight: 500 }}>
-                    Almacén de entrega
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: colors.text.secondary, fontWeight: 500 }}>
-                    Artículos solicitados
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: colors.text.secondary, fontWeight: 500 }}>
-                    Artículos entregados
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: colors.text.secondary, fontWeight: 500 }}>
-                    Estatus
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: colors.text.secondary, fontWeight: 500 }}>
-                    Pago
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: colors.text.secondary, fontWeight: 500, textAlign: "right" }}>
-                    Total
-                  </Typography>
-                </THeaderRow>
-
-                {factura.pedidos.map((row: FacturaPedidoRow) => (
-                  <TDataRow key={row.id}>
-                    <Typography variant="body2">{row.pedido}</Typography>
-                    <Typography variant="body2">{row.fecha}</Typography>
-                    <Typography variant="body2">{row.almacen}</Typography>
-                    <Typography variant="body2">{row.articulosSolicitados}</Typography>
-                    <Typography variant="body2">
-                      {row.articulosEntregados !== null ? row.articulosEntregados : "-"}
-                    </Typography>
-                    <Box>
-                      <StatusChip
-                        label={row.estatus === "pendiente" ? "Pendiente" : row.estatus === "surtido" ? "Surtido" : "Cancelado"}
-                        variant={ESTATUS_VARIANTS[row.estatus]}
-                      />
-                    </Box>
-                    <Box>
-                      <StatusChip
-                        label={row.pago === "pendiente" ? "Pendiente" : "Pagado"}
-                        variant={PAGO_VARIANTS[row.pago]}
-                      />
-                    </Box>
-                    <Typography variant="body2" sx={{ textAlign: "right" }}>
-                      {numeral(row.total).format("$0,0.00")}
-                    </Typography>
-                  </TDataRow>
-                ))}
-
-                {/* Total row */}
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    alignItems: "center",
-                    gap: 3,
-                    px: 3,
-                    py: 2,
-                    bgcolor: colors.background.main,
-                  }}
-                >
-                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                    Total
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, minWidth: 120, textAlign: "right" }}>
-                    {numeral(grandTotal).format("$0,0.00")}
-                  </Typography>
-                </Box>
+              <Typography variant="body2" sx={{ color: colors.text.secondary, mb: 1.5 }}>
+                Emitida el {formatDate(factura.fechaEmision)}
+              </Typography>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  Pago:
+                </Typography>
+                <StatusChip
+                  label={STATUS_LABELS[factura.estatus]}
+                  variant={STATUS_VARIANTS[factura.estatus]}
+                />
+              </Box>
+              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                <HeaderField label="Vencimiento" value={formatDate(factura.fechaVencimiento)} />
+                <HeaderField label="Tipo de pago" value={factura.tipoPago || "—"} />
+                <HeaderField label="Pedido" value={factura.pedido?.folio ?? "—"} />
               </Box>
             </Box>
-          </TableCard>
-        )}
 
-        {/* Archivos tab */}
-        {activeTab === "archivos" && (
-          <Box sx={{ py: 6, textAlign: "center" }}>
-            <Typography variant="body2" sx={{ color: colors.text.secondary }}>
-              No hay archivos adjuntos
-            </Typography>
-          </Box>
-        )}
+            <Divider sx={{ borderColor: colors.border }} />
 
-        {!factura && (
-          <Box sx={{ py: 6, textAlign: "center" }}>
-            <Typography variant="body2" sx={{ color: colors.text.secondary }}>
-              Factura no encontrada
-            </Typography>
-          </Box>
+            {/* Montos */}
+            <Box sx={{ display: "flex", gap: 2 }}>
+              <StatsCard>
+                <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", mb: 0.5 }}>
+                  Total
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                  {numeral(factura.total).format("$0,0.00")}
+                </Typography>
+              </StatsCard>
+              <StatsCard>
+                <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", mb: 0.5 }}>
+                  Pagado
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                  {numeral(factura.pagado).format("$0,0.00")}
+                </Typography>
+              </StatsCard>
+              <StatsCard>
+                <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", mb: 0.5 }}>
+                  Saldo
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                  {numeral(factura.saldo).format("$0,0.00")}
+                </Typography>
+              </StatsCard>
+            </Box>
+
+            {/* Abonos */}
+            <Box>
+              <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>
+                Abonos
+              </Typography>
+              <TableCard>
+                <Box sx={{ overflowX: "auto" }}>
+                  <Box sx={{ minWidth: 700 }}>
+                    <THeaderRow>
+                      <Typography variant="caption" sx={{ color: colors.text.secondary, fontWeight: 500 }}>
+                        Fecha
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: colors.text.secondary, fontWeight: 500 }}>
+                        Referencia
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: colors.text.secondary, fontWeight: 500 }}>
+                        Descripción
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: colors.text.secondary, fontWeight: 500, textAlign: "right" }}>
+                        Monto
+                      </Typography>
+                    </THeaderRow>
+
+                    {factura.abonos.length === 0 && <EmptyState>Sin abonos registrados</EmptyState>}
+
+                    {factura.abonos.map((abono) => (
+                      <TDataRow key={abono.id}>
+                        <Typography variant="body2">{formatDate(abono.fecha)}</Typography>
+                        <Typography variant="body2">{abono.referencia || "—"}</Typography>
+                        <Typography variant="body2">{abono.descripcion || "—"}</Typography>
+                        <Typography variant="body2" sx={{ textAlign: "right" }}>
+                          {numeral(abono.monto).format("$0,0.00")}
+                        </Typography>
+                      </TDataRow>
+                    ))}
+
+                    {factura.abonos.length > 0 && (
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "flex-end",
+                          alignItems: "center",
+                          gap: 3,
+                          px: 3,
+                          py: 2,
+                          bgcolor: colors.background.main,
+                        }}
+                      >
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                          Total abonado
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 700, minWidth: 120, textAlign: "right" }}>
+                          {numeral(totalAbonos).format("$0,0.00")}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+                </Box>
+              </TableCard>
+            </Box>
+          </>
         )}
       </Stack>
     </MainLayout>

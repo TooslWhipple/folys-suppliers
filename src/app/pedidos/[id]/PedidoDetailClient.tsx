@@ -6,7 +6,6 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { useApi } from "@/hooks/useApi";
 import { ordersService, OrderFull, OrderItemFull, DeliveryMethod } from "@/services/orders.service";
 import { DeliveryDatePicker, formatShortDate } from "@/components/DeliveryDatePicker/DeliveryDatePicker";
-import { AddFacturaDrawer, FacturaFormData } from "@/components/AddFacturaDrawer/AddFacturaDrawer";
 import {
   Box,
   Typography,
@@ -58,9 +57,6 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
   const [pickerItemId, setPickerItemId] = useState<number | null>(null);
   const [deliveryDates, setDeliveryDates] = useState<Record<number, Date>>({});
   const [deliveryMethodIds, setDeliveryMethodIds] = useState<Record<number, number>>({});
-  const [activeTab, setActiveTab] = useState<"articulos" | "facturas">("articulos");
-  const [addFacturaOpen, setAddFacturaOpen] = useState(false);
-  const [facturas, setFacturas] = useState<FacturaFormData[]>([]);
   const [availableDeliveryMethods, setAvailableDeliveryMethods] = useState<DeliveryMethod[]>([]);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
@@ -127,24 +123,6 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
     }
     // eslint-disable-next-line
   }, [order?.order_items, order?.order_deliveries]);
-
-  // Load invoices when switching to facturas tab
-  useEffect(() => {
-    if (activeTab === "facturas" && order) {
-      ordersService.getOrderInvoices(orderId).then((data) => {
-        setFacturas(data.map((inv) => ({
-          subtotal: inv.subtotal,
-          iva: inv.iva,
-          total: inv.total,
-          pdfFile: null,
-          xmlFile: null,
-        })));
-      }).catch(() => {
-        // Silently fail - will show empty state
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, order, orderId]);
 
   const handleBack = () => {
     router.push("/pedidos");
@@ -229,37 +207,6 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
     }
     // Navigate back to orders list
     router.push("/pedidos");
-  };
-
-  const handleAddFactura = async (data: FacturaFormData) => {
-    try {
-      await ordersService.createInvoice(orderId, {
-        subtotal: data.subtotal,
-        iva: data.iva,
-        total: data.total,
-        pdfFile: data.pdfFile,
-        xmlFile: data.xmlFile,
-      });
-
-      // Refresh invoices
-      const updatedInvoices = await ordersService.getOrderInvoices(orderId);
-      setFacturas(
-        updatedInvoices.map((inv) => ({
-          subtotal: inv.subtotal,
-          iva: inv.iva,
-          total: inv.total,
-          pdfUrl: inv.pdfUrl,
-          xmlUrl: inv.xmlUrl,
-          pdfFile: null,
-          xmlFile: null,
-        }))
-      );
-
-      setAddFacturaOpen(false);
-      setSnackbar({ open: true, message: "Factura agregada exitosamente", severity: "success" });
-    } catch {
-      setSnackbar({ open: true, message: "Error al agregar factura", severity: "error" });
-    }
   };
 
   if (loading) {
@@ -420,203 +367,83 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
               </Box>
             </Paper>
 
-            {/* Tabs */}
-            <Box sx={{ display: "flex", gap: 0.5, mb: 2 }}>
-              {(["articulos", "facturas"] as const).map((tab) => {
-                const isActive = activeTab === tab;
-                const label = tab === "articulos" ? "Artículos" : "Facturas";
-                return (
-                  <Box
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    sx={{
-                      px: 2,
-                      py: 0.875,
-                      borderRadius: 1.5,
-                      cursor: "pointer",
-                      bgcolor: isActive ? "#ffffff" : "transparent",
-                      border: isActive ? "1px solid #e4e7ec" : "1px solid transparent",
-                      boxShadow: isActive ? "0px 1px 3px rgba(16,24,40,0.08)" : "none",
-                      transition: "all 0.15s",
-                      "&:hover": { bgcolor: isActive ? "#ffffff" : "#f9fafb" },
-                    }}
-                  >
-                    <Typography
-                      sx={{
-                        fontSize: "0.875rem",
-                        fontWeight: isActive ? 600 : 400,
-                        color: isActive ? "#101828" : "#667085",
-                      }}
-                    >
-                      {label}
+            <Typography variant="body2" sx={{ mb: 2, color: "text.secondary", fontSize: "0.875rem" }}>
+              Define una fecha de entrega para los artículos solicitados
+            </Typography>
+            <Paper elevation={0} sx={{ overflow: "hidden", border: "1px solid #e4e7ec", borderRadius: 2 }}>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: "2fr 1.5fr 1fr 120px",
+                  gap: 2,
+                  px: 3,
+                  py: 1.5,
+                  bgcolor: "#ffffff",
+                  borderBottom: "1px solid #e4e7ec",
+                }}
+              >
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8125rem" }}>Nombre</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8125rem" }}>Fecha de entrega</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ textAlign: "right", fontSize: "0.8125rem" }}>Costo unitario</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", fontSize: "0.8125rem" }}>Pedido</Typography>
+              </Box>
+              {items.map((item) => (
+                <Box
+                  key={item.id}
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: "2fr 1.5fr 1fr 120px",
+                    gap: 2,
+                    px: 3,
+                    py: 1.75,
+                    alignItems: "center",
+                    borderBottom: "1px solid #f2f4f7",
+                    bgcolor: "white",
+                    "&:last-child": { borderBottom: "none" },
+                  }}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                    <Box sx={{ width: 36, height: 36, bgcolor: "#f2f4f7", borderRadius: 1.5, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <Inventory sx={{ fontSize: 18, color: "#98a2b3" }} />
+                    </Box>
+                    <Typography variant="body2" noWrap title={item.product.short_name} sx={{ fontSize: "0.875rem", color: "#101828" }}>
+                      {item.product.short_name}
                     </Typography>
                   </Box>
-                );
-              })}
-            </Box>
-
-            {/* Tab: Artículos */}
-            {activeTab === "articulos" && (
-              <>
-                <Typography variant="body2" sx={{ mb: 2, color: "text.secondary", fontSize: "0.875rem" }}>
-                  Define una fecha de entrega para los artículos solicitados
-                </Typography>
-                <Paper elevation={0} sx={{ overflow: "hidden", border: "1px solid #e4e7ec", borderRadius: 2 }}>
                   <Box
+                    onClick={() => setPickerItemId(item.id)}
                     sx={{
-                      display: "grid",
-                      gridTemplateColumns: "2fr 1.5fr 1fr 120px",
-                      gap: 2,
-                      px: 3,
-                      py: 1.5,
-                      bgcolor: "#ffffff",
-                      borderBottom: "1px solid #e4e7ec",
+                      display: "flex", alignItems: "center", gap: 1,
+                      px: 1.5, py: 0.75,
+                      border: `1px solid ${deliveryDates[item.id] ? "#1570EF" : "#d0d5dd"}`,
+                      borderRadius: 1.5, bgcolor: "#ffffff", cursor: "pointer",
+                      "&:hover": { borderColor: "#98a2b3" },
                     }}
                   >
-                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8125rem" }}>Nombre</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8125rem" }}>Fecha de entrega</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: "right", fontSize: "0.8125rem" }}>Costo unitario</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", fontSize: "0.8125rem" }}>Pedido</Typography>
+                    <Typography variant="body2" sx={{ fontSize: "0.875rem", color: deliveryDates[item.id] ? "#1570EF" : "#98a2b3", flex: 1 }}>
+                      {deliveryDates[item.id] ? `${formatShortDate(deliveryDates[item.id])} (${availableDeliveryMethods.find(m => m.id === deliveryMethodIds[item.id])?.name || "sin método"})` : "Seleccionar"}
+                    </Typography>
+                    <CalendarToday sx={{ fontSize: 16, color: deliveryDates[item.id] ? "#1570EF" : "#667085", flexShrink: 0 }} />
                   </Box>
-                  {items.map((item) => (
-                    <Box
-                      key={item.id}
-                      sx={{
-                        display: "grid",
-                        gridTemplateColumns: "2fr 1.5fr 1fr 120px",
-                        gap: 2,
-                        px: 3,
-                        py: 1.75,
-                        alignItems: "center",
-                        borderBottom: "1px solid #f2f4f7",
-                        bgcolor: "white",
-                        "&:last-child": { borderBottom: "none" },
-                      }}
-                    >
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                        <Box sx={{ width: 36, height: 36, bgcolor: "#f2f4f7", borderRadius: 1.5, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                          <Inventory sx={{ fontSize: 18, color: "#98a2b3" }} />
-                        </Box>
-                        <Typography variant="body2" noWrap title={item.product.short_name} sx={{ fontSize: "0.875rem", color: "#101828" }}>
-                          {item.product.short_name}
-                        </Typography>
-                      </Box>
-                      <Box
-                        onClick={() => setPickerItemId(item.id)}
-                        sx={{
-                          display: "flex", alignItems: "center", gap: 1,
-                          px: 1.5, py: 0.75,
-                          border: `1px solid ${deliveryDates[item.id] ? "#1570EF" : "#d0d5dd"}`,
-                          borderRadius: 1.5, bgcolor: "#ffffff", cursor: "pointer",
-                          "&:hover": { borderColor: "#98a2b3" },
-                        }}
-                      >
-                        <Typography variant="body2" sx={{ fontSize: "0.875rem", color: deliveryDates[item.id] ? "#1570EF" : "#98a2b3", flex: 1 }}>
-                          {deliveryDates[item.id] ? `${formatShortDate(deliveryDates[item.id])} (${availableDeliveryMethods.find(m => m.id === deliveryMethodIds[item.id])?.name || "sin método"})` : "Seleccionar"}
-                        </Typography>
-                        <CalendarToday sx={{ fontSize: 16, color: deliveryDates[item.id] ? "#1570EF" : "#667085", flexShrink: 0 }} />
-                      </Box>
-                      <Typography variant="body2" sx={{ textAlign: "right", fontWeight: 500, fontSize: "0.875rem", color: "#101828" }}>
-                        {formatCurrency(item.product.list_cost)}
-                      </Typography>
-                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
-                        <IconButton size="small" onClick={() => updateItemQuantity(item.id, -1)} disabled={item.requested_quantity <= 0}
-                          sx={{ width: 24, height: 24, p: 0, color: "#344054", "&:hover": { bgcolor: "transparent" }, "&.Mui-disabled": { color: "#d0d5dd" } }}>
-                          <Typography sx={{ fontSize: "1.1rem", fontWeight: 400, lineHeight: 1 }}>—</Typography>
-                        </IconButton>
-                        <Typography variant="body2" sx={{ minWidth: 24, textAlign: "center", fontWeight: 700, fontSize: "0.875rem", color: "#101828" }}>
-                          {item.requested_quantity}
-                        </Typography>
-                        <IconButton size="small" onClick={() => updateItemQuantity(item.id, 1)} disabled={item.requested_quantity >= (originalQuantities[item.id] ?? item.requested_quantity)}
-                          sx={{ width: 24, height: 24, p: 0, color: "#344054", "&:hover": { bgcolor: "transparent" }, "&.Mui-disabled": { color: "#d0d5dd" } }}>
-                          <Typography sx={{ fontSize: "1.1rem", fontWeight: 400, lineHeight: 1 }}>+</Typography>
-                        </IconButton>
-                      </Box>
-                    </Box>
-                  ))}
-                </Paper>
-              </>
-            )}
-
-            {/* Tab: Facturas */}
-            {activeTab === "facturas" && (
-              <>
-                <Paper elevation={0} sx={{ overflow: "hidden", border: "1px solid #e4e7ec", borderRadius: 2 }}>
-                  {/* Table header */}
-                  <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 2, px: 3, py: 1.5, borderBottom: "1px solid #e4e7ec" }}>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8125rem" }}>Fecha</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8125rem" }}>Pedido</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8125rem" }}>Estatus</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8125rem" }}>Archivos</Typography>
+                  <Typography variant="body2" sx={{ textAlign: "right", fontWeight: 500, fontSize: "0.875rem", color: "#101828" }}>
+                    {formatCurrency(item.product.list_cost)}
+                  </Typography>
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+                    <IconButton size="small" onClick={() => updateItemQuantity(item.id, -1)} disabled={item.requested_quantity <= 0}
+                      sx={{ width: 24, height: 24, p: 0, color: "#344054", "&:hover": { bgcolor: "transparent" }, "&.Mui-disabled": { color: "#d0d5dd" } }}>
+                      <Typography sx={{ fontSize: "1.1rem", fontWeight: 400, lineHeight: 1 }}>—</Typography>
+                    </IconButton>
+                    <Typography variant="body2" sx={{ minWidth: 24, textAlign: "center", fontWeight: 700, fontSize: "0.875rem", color: "#101828" }}>
+                      {item.requested_quantity}
+                    </Typography>
+                    <IconButton size="small" onClick={() => updateItemQuantity(item.id, 1)} disabled={item.requested_quantity >= (originalQuantities[item.id] ?? item.requested_quantity)}
+                      sx={{ width: 24, height: 24, p: 0, color: "#344054", "&:hover": { bgcolor: "transparent" }, "&.Mui-disabled": { color: "#d0d5dd" } }}>
+                      <Typography sx={{ fontSize: "1.1rem", fontWeight: 400, lineHeight: 1 }}>+</Typography>
+                    </IconButton>
                   </Box>
-                  {/* Table rows */}
-                  {facturas.length === 0 ? (
-                    <Box sx={{ px: 3, py: 4, textAlign: "center" }}>
-                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.875rem" }}>
-                        No hay facturas agregadas
-                      </Typography>
-                    </Box>
-                  ) : (
-                    facturas.map((f, i) => (
-                      <Box
-                        key={i}
-                        sx={{
-                          display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr",
-                          gap: 2, px: 3, py: 1.75, alignItems: "center",
-                          borderBottom: "1px solid #f2f4f7", bgcolor: "white",
-                          "&:last-child": { borderBottom: "none" },
-                        }}
-                      >
-                        <Typography variant="body2" sx={{ fontSize: "0.875rem", color: "#101828" }}>
-                          {new Date().toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" })}
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontSize: "0.875rem", color: "#101828" }}>
-                          {order.id}
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontSize: "0.875rem", color: "#17B26A", fontWeight: 500 }}>
-                          Pagado
-                        </Typography>
-                        <Box sx={{ display: "flex", gap: 1 }}>
-                          {f.pdfUrl && (
-                            <a href={f.pdfUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#1570EF", fontSize: "0.75rem" }}>
-                              PDF
-                            </a>
-                          )}
-                          {f.xmlUrl && (
-                            <a href={f.xmlUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#1570EF", fontSize: "0.75rem" }}>
-                              XML
-                            </a>
-                          )}
-                          {!f.pdfUrl && !f.xmlUrl && (
-                            <Typography variant="body2" sx={{ fontSize: "0.75rem", color: "#98a2b3" }}>
-                              Sin archivos
-                            </Typography>
-                          )}
-                        </Box>
-                      </Box>
-                    ))
-                  )}
-                </Paper>
-
-                <Box sx={{ mt: 2 }}>
-                  <Button
-                    variant="outlined"
-                    onClick={() => setAddFacturaOpen(true)}
-                    sx={{
-                      borderColor: "#d0d5dd",
-                      color: "#344054",
-                      textTransform: "none",
-                      fontWeight: 500,
-                      fontSize: "0.875rem",
-                      borderRadius: 1.5,
-                      "&:hover": { borderColor: "#98a2b3", bgcolor: "transparent" },
-                    }}
-                  >
-                    + Agregar factura
-                  </Button>
                 </Box>
-              </>
-            )}
+              ))}
+            </Paper>
           </Grid>
 
           {/* Delivery Date Picker Modal */}
@@ -634,13 +461,6 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
                 setPickerItemId(null);
               }
             }}
-          />
-
-          {/* Add Factura Drawer */}
-          <AddFacturaDrawer
-            open={addFacturaOpen}
-            onClose={() => setAddFacturaOpen(false)}
-            onSubmit={handleAddFactura}
           />
 
           {/* Summary */}

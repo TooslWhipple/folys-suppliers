@@ -1,14 +1,61 @@
 "use client";
 
-import { Box, Typography, Paper, Stack, Divider } from "@mui/material";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Box, Typography, Paper, Stack, Divider, TablePagination } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { Bell } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Title } from "@/components/Title/Title";
+import { TabFilters } from "@/components/TabFilters/TabFilters";
 import { StatusChip } from "@/components/StatusChip/StatusChip";
 import { colors } from "@/lib/theme";
-import { facturasItems, solicitudesDocumentos, type FacturaItem, type SolicitudDocItem } from "@/mocks/data";
+import { useApi } from "@/hooks/useApi";
+import {
+  invoicesService,
+  type DocumentRequestItem,
+  type DocumentRequestTipo,
+  type DocumentRequestsResponse,
+  type SupplierInvoiceEstatus,
+  type SupplierInvoiceStatusFilter,
+  type SupplierInvoicesResponse,
+} from "@/services/invoices.service";
 import numeral from "numeral";
+import type { TabOption } from "@/components/TabFilters/TabFilters";
+
+const STATUS_TABS: TabOption[] = [
+  { label: "Todas", value: "all" },
+  { label: "Pendientes", value: "pending" },
+  { label: "Pagadas", value: "paid" },
+];
+
+const STATUS_VARIANTS: Record<SupplierInvoiceEstatus, "warning" | "success"> = {
+  pendiente: "warning",
+  pagado: "success",
+};
+
+const STATUS_LABELS: Record<SupplierInvoiceEstatus, string> = {
+  pendiente: "Pendiente",
+  pagado: "Pagado",
+};
+
+const DOCUMENT_REQUEST_LABELS: Record<DocumentRequestTipo, { tipo: string; descripcion: string }> = {
+  nota_credito: {
+    tipo: "Nota de crédito",
+    descripcion: "Ajuste de costo de artículos relacionada a las facturas",
+  },
+};
+
+const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
+
+const formatDate = (dateString: string): string => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString("es-MX", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+};
 
 const StatsCard = styled(Paper)({
   backgroundColor: colors.background.sidebar,
@@ -45,6 +92,8 @@ const TableDataRow = styled(Box)({
   padding: "14px 24px",
   borderBottom: `1px solid ${colors.border}`,
   alignItems: "center",
+  cursor: "pointer",
+  "&:hover": { backgroundColor: colors.background.main },
   "&:last-child": { borderBottom: "none" },
 });
 
@@ -59,12 +108,74 @@ const SolicitudCard = styled(Paper)({
   alignSelf: "flex-start",
 });
 
-const STATUS_VARIANTS: Record<string, "warning" | "success"> = {
-  pendiente: "warning",
-  pagado: "success",
-};
+const EmptyState = ({ children }: { children: string }) => (
+  <Box sx={{ px: 3, py: 4, textAlign: "center" }}>
+    <Typography variant="body2" sx={{ color: colors.text.secondary }}>
+      {children}
+    </Typography>
+  </Box>
+);
+
+const facturasRelacionadas = (item: DocumentRequestItem): string =>
+  item.facturas.length > 0
+    ? item.facturas.map((factura) => factura.folio).join(", ")
+    : "Sin facturas relacionadas";
 
 export default function FacturasPage() {
+  const router = useRouter();
+
+  const [activeTab, setActiveTab] = useState<SupplierInvoiceStatusFilter>("all");
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(ROWS_PER_PAGE_OPTIONS[0]);
+
+  const {
+    execute: executeInvoices,
+    loading: loadingInvoices,
+    error: invoicesError,
+    data: invoicesData,
+  } = useApi<SupplierInvoicesResponse>();
+
+  const {
+    execute: executeRequests,
+    loading: loadingRequests,
+    error: requestsError,
+    data: requestsData,
+  } = useApi<DocumentRequestsResponse>();
+
+  const loadInvoices = useCallback(async () => {
+    await executeInvoices(() =>
+      invoicesService.getInvoices({ page: page + 1, limit: rowsPerPage, status: activeTab })
+    );
+  }, [executeInvoices, page, rowsPerPage, activeTab]);
+
+  const loadDocumentRequests = useCallback(async () => {
+    await executeRequests(() => invoicesService.getDocumentRequests({ status: "open" }));
+  }, [executeRequests]);
+
+  useEffect(() => {
+    loadInvoices();
+  }, [loadInvoices]);
+
+  useEffect(() => {
+    loadDocumentRequests();
+  }, [loadDocumentRequests]);
+
+  const invoices = useMemo(() => invoicesData?.items ?? [], [invoicesData]);
+  const requests = useMemo(() => requestsData?.items ?? [], [requestsData]);
+  const summary = invoicesData?.summary;
+  const totalInvoices = invoicesData?.pagination.total ?? 0;
+  const totalOpenRequests = requestsData?.pagination.total ?? 0;
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value as SupplierInvoiceStatusFilter);
+    setPage(0);
+  };
+
+  const handleRowsPerPageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
   return (
     <MainLayout>
       <Stack direction="column" spacing={3}>
@@ -83,7 +194,7 @@ export default function FacturasPage() {
                   Pendiente de cobro
                 </Typography>
                 <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                  {numeral(290123.14).format("$0,0.00")}
+                  {numeral(summary?.pendienteCobro ?? 0).format("$0,0.00")}
                 </Typography>
               </StatsCard>
               <StatsCard>
@@ -91,10 +202,12 @@ export default function FacturasPage() {
                   Pendiente por facturar
                 </Typography>
                 <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                  {numeral(290123.14).format("$0,0.00")}
+                  {numeral(summary?.pendienteFacturar ?? 0).format("$0,0.00")}
                 </Typography>
               </StatsCard>
             </Box>
+
+            <TabFilters tabs={STATUS_TABS} activeTab={activeTab} onTabChange={handleTabChange} />
 
             {/* Table */}
             <TableContainer>
@@ -106,20 +219,61 @@ export default function FacturasPage() {
                 <Typography variant="caption" sx={{ color: colors.text.secondary, fontWeight: 500 }}>Total</Typography>
               </TableHeaderRow>
 
+              {loadingInvoices && <EmptyState>Cargando facturas…</EmptyState>}
+
+              {!loadingInvoices && invoicesError && (
+                <EmptyState>No se pudieron cargar las facturas</EmptyState>
+              )}
+
+              {!loadingInvoices && !invoicesError && invoices.length === 0 && (
+                <EmptyState>No hay facturas</EmptyState>
+              )}
+
               {/* Rows */}
-              {facturasItems.map((item: FacturaItem) => (
-                <TableDataRow key={item.id}>
-                  <Typography variant="body2">{item.fecha}</Typography>
-                  <Typography variant="body2">{item.pedido}</Typography>
+              {!loadingInvoices && invoices.map((item) => (
+                <TableDataRow key={item.id} onClick={() => router.push(`/facturas/${item.id}`)}>
+                  <Typography variant="body2">{formatDate(item.fechaEmision)}</Typography>
+                  <Typography variant="body2">{item.pedido?.folio ?? "—"}</Typography>
                   <Box>
                     <StatusChip
-                      label={item.estatus === "pendiente" ? "Pendiente" : "Pagado"}
+                      label={STATUS_LABELS[item.estatus]}
                       variant={STATUS_VARIANTS[item.estatus]}
                     />
                   </Box>
                   <Typography variant="body2">{numeral(item.total).format("$0,0.00")}</Typography>
                 </TableDataRow>
               ))}
+
+              {totalInvoices > 0 && (
+                <TablePagination
+                  component="div"
+                  rowsPerPageOptions={ROWS_PER_PAGE_OPTIONS}
+                  count={totalInvoices}
+                  rowsPerPage={rowsPerPage}
+                  page={page}
+                  onPageChange={(_, newPage) => setPage(newPage)}
+                  onRowsPerPageChange={handleRowsPerPageChange}
+                  labelRowsPerPage="Filas por página:"
+                  labelDisplayedRows={({ from, to, count }) =>
+                    `${from}-${to} de ${count !== -1 ? count : `más de ${to}`}`
+                  }
+                  sx={{
+                    borderTop: `1px solid ${colors.border}`,
+                    overflow: "hidden",
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    "& .MuiTablePagination-toolbar": {
+                      minHeight: 52,
+                      flexWrap: "wrap",
+                      justifyContent: "flex-end",
+                      padding: "0 16px",
+                    },
+                    "& .MuiTablePagination-spacer": {
+                      display: "none",
+                    },
+                  }}
+                />
+              )}
             </TableContainer>
           </Stack>
 
@@ -144,31 +298,57 @@ export default function FacturasPage() {
               Solicitud de documentos
             </Typography>
 
-            <Stack direction="column" spacing={0} divider={<Divider sx={{ borderColor: colors.border }} />}>
-              {solicitudesDocumentos.map((item: SolicitudDocItem) => (
-                <Box key={item.id} sx={{ py: 1.5 }}>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 1 }}>
-                    <Box sx={{ flex: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>
-                        {item.tipo}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", lineHeight: 1.4 }}>
-                        {item.descripcion}
-                      </Typography>
-                      <Typography
-                        variant="caption"
-                        sx={{ color: "#1570EF", display: "block", mt: 0.25, lineHeight: 1.4 }}
-                      >
-                        {item.facturas}
+            {loadingRequests && (
+              <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", py: 1.5 }}>
+                Cargando solicitudes…
+              </Typography>
+            )}
+
+            {!loadingRequests && requestsError && (
+              <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", py: 1.5 }}>
+                No se pudieron cargar las solicitudes
+              </Typography>
+            )}
+
+            {!loadingRequests && !requestsError && requests.length === 0 && (
+              <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", py: 1.5 }}>
+                No hay solicitudes abiertas
+              </Typography>
+            )}
+
+            {!loadingRequests && requests.length > 0 && (
+              <Stack direction="column" spacing={0} divider={<Divider sx={{ borderColor: colors.border }} />}>
+                {requests.map((item) => (
+                  <Box key={item.id} sx={{ py: 1.5 }}>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 1 }}>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                          {DOCUMENT_REQUEST_LABELS[item.tipo].tipo}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", lineHeight: 1.4 }}>
+                          {DOCUMENT_REQUEST_LABELS[item.tipo].descripcion}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "#1570EF", display: "block", mt: 0.25, lineHeight: 1.4 }}
+                        >
+                          {facturasRelacionadas(item)}
+                        </Typography>
+                      </Box>
+                      <Typography variant="body2" sx={{ fontWeight: 600, flexShrink: 0 }}>
+                        {numeral(item.monto).format("$0,0.00")}
                       </Typography>
                     </Box>
-                    <Typography variant="body2" sx={{ fontWeight: 600, flexShrink: 0 }}>
-                      {numeral(item.monto).format("$0,0.00")}
-                    </Typography>
                   </Box>
-                </Box>
-              ))}
-            </Stack>
+                ))}
+              </Stack>
+            )}
+
+            {!loadingRequests && totalOpenRequests > requests.length && (
+              <Typography variant="caption" sx={{ color: colors.text.secondary, display: "block", pt: 1.5 }}>
+                Mostrando {requests.length} de {totalOpenRequests} solicitudes abiertas
+              </Typography>
+            )}
           </SolicitudCard>
         </Box>
       </Stack>
