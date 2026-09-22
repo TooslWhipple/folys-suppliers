@@ -10,13 +10,16 @@ import { Title } from "@/components/Title/Title";
 import { TabFilters } from "@/components/TabFilters/TabFilters";
 import { StatusChip } from "@/components/StatusChip/StatusChip";
 import { colors } from "@/lib/theme";
+import {
+  INVOICE_STATUS_CHIP_VARIANTS,
+  INVOICE_STATUS_LABELS,
+} from "@/lib/statusChips";
 import { useApi } from "@/hooks/useApi";
 import {
   invoicesService,
   type DocumentRequestItem,
   type DocumentRequestTipo,
   type DocumentRequestsResponse,
-  type SupplierInvoiceEstatus,
   type SupplierInvoiceStatusFilter,
   type SupplierInvoicesResponse,
 } from "@/services/invoices.service";
@@ -28,16 +31,6 @@ const STATUS_TABS: TabOption[] = [
   { label: "Pendientes", value: "pending" },
   { label: "Pagadas", value: "paid" },
 ];
-
-const STATUS_VARIANTS: Record<SupplierInvoiceEstatus, "warning" | "success"> = {
-  pendiente: "warning",
-  pagado: "success",
-};
-
-const STATUS_LABELS: Record<SupplierInvoiceEstatus, string> = {
-  pendiente: "Pendiente",
-  pagado: "Pagado",
-};
 
 const DOCUMENT_REQUEST_LABELS: Record<DocumentRequestTipo, { tipo: string; descripcion: string }> = {
   nota_credito: {
@@ -236,8 +229,8 @@ export default function FacturasPage() {
                   <Typography variant="body2">{item.pedido?.folio ?? "—"}</Typography>
                   <Box>
                     <StatusChip
-                      label={STATUS_LABELS[item.estatus]}
-                      variant={STATUS_VARIANTS[item.estatus]}
+                      label={INVOICE_STATUS_LABELS[item.estatus]}
+                      variant={INVOICE_STATUS_CHIP_VARIANTS[item.estatus]}
                     />
                   </Box>
                   <Typography variant="body2">{numeral(item.total).format("$0,0.00")}</Typography>

@@ -3,16 +3,14 @@
 import { useState } from "react";
 import { Box, Typography } from "@mui/material";
 import { styled } from "@mui/material/styles";
-import { Package, CircleDollarSign, Clock } from "lucide-react";
+import { Package, CircleDollarSign } from "lucide-react";
 import numeral from "numeral";
 import { colors } from "@/lib/theme";
-import {
-  entregasProgramadas,
-  pagosProgramados,
-  historialPagos,
-  type EntregaGrupo,
-  type PagoItem,
-} from "@/mocks/data";
+import { formatDayMonth, formatLongDate } from "@/lib/dates";
+import type {
+  SupplierDashboardCobro,
+  SupplierDashboardEntregaGrupo,
+} from "@/services/dashboard.service";
 
 const SidebarContainer = styled(Box)({
   width: 280,
@@ -52,7 +50,18 @@ function formatMonto(value: number) {
   return numeral(value).format("$0,0.00");
 }
 
-function EntregasTab() {
+/** Mismo mensaje centrado y discreto que usa `TableCrud` cuando no hay filas. */
+function EmptyState({ message }: { message: string }) {
+  return (
+    <Box sx={{ py: 3, textAlign: "center" }}>
+      <Typography variant="body2" color="text.secondary">
+        {message}
+      </Typography>
+    </Box>
+  );
+}
+
+function EntregasTab({ entregas }: { entregas: SupplierDashboardEntregaGrupo[] }) {
   return (
     <Box>
       <Box
@@ -73,81 +82,85 @@ function EntregasTab() {
         Entregas programadas
       </Typography>
 
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0 }}>
-        {entregasProgramadas.map((grupo: EntregaGrupo) => (
-          <Box key={grupo.fecha} sx={{ mb: 1.5 }}>
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                bgcolor: "#EFF8FF",
-                borderRadius: 1,
-                px: 1,
-                py: 0.5,
-                mb: 0.75,
-              }}
-            >
-              <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, color: "#1570EF" }}>
-                {grupo.fecha}
-              </Typography>
-              <Typography sx={{ fontSize: "0.75rem", color: "#667085" }}>
-                {grupo.totalArticulos} {grupo.totalArticulos === 1 ? "artículo" : "artículos"}
-              </Typography>
-            </Box>
-
-            {grupo.productos.map((p, i) => (
+      {entregas.length === 0 ? (
+        <EmptyState message="No hay entregas programadas" />
+      ) : (
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 0 }}>
+          {entregas.map((grupo) => (
+            <Box key={grupo.fecha} sx={{ mb: 1.5 }}>
               <Box
-                key={i}
                 sx={{
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
+                  bgcolor: "#EFF8FF",
+                  borderRadius: 1,
+                  px: 1,
                   py: 0.5,
-                  gap: 1,
+                  mb: 0.75,
                 }}
               >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
-                  <Box
-                    sx={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: 1,
-                      bgcolor: "#F9FAFB",
-                      border: "1px solid #E4E7EC",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <Package size={12} color="#98A2B3" strokeWidth={1.5} />
-                  </Box>
-                  <Typography
-                    sx={{
-                      fontSize: "0.6875rem",
-                      color: "#344054",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {p.nombre}
-                  </Typography>
-                </Box>
-                <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, color: "#101828", flexShrink: 0 }}>
-                  {p.cantidad}
+                <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, color: "#1570EF" }}>
+                  {formatDayMonth(grupo.fecha)}
+                </Typography>
+                <Typography sx={{ fontSize: "0.75rem", color: "#667085" }}>
+                  {grupo.totalArticulos} {grupo.totalArticulos === 1 ? "artículo" : "artículos"}
                 </Typography>
               </Box>
-            ))}
-          </Box>
-        ))}
-      </Box>
+
+              {grupo.articulos.map((articulo) => (
+                <Box
+                  key={articulo.orderItemId}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    py: 0.5,
+                    gap: 1,
+                  }}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
+                    <Box
+                      sx={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: 1,
+                        bgcolor: "#F9FAFB",
+                        border: "1px solid #E4E7EC",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Package size={12} color="#98A2B3" strokeWidth={1.5} />
+                    </Box>
+                    <Typography
+                      sx={{
+                        fontSize: "0.6875rem",
+                        color: "#344054",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {articulo.producto}
+                    </Typography>
+                  </Box>
+                  <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, color: "#101828", flexShrink: 0 }}>
+                    {articulo.cantidad}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          ))}
+        </Box>
+      )}
     </Box>
   );
 }
 
-function PagosTab() {
+function CobrosTab({ cobros }: { cobros: SupplierDashboardCobro[] }) {
   return (
     <Box>
       {/* Icon */}
@@ -166,79 +179,61 @@ function PagosTab() {
         <CircleDollarSign size={22} color="#1570EF" strokeWidth={1.5} />
       </Box>
 
-      {/* Pagos programados */}
       <Typography sx={{ fontSize: "0.75rem", color: "#667085", fontWeight: 500, mb: 1 }}>
-        Pagos programados
+        Historial de cobros
       </Typography>
 
-      {pagosProgramados.map((p: PagoItem) => (
-        <Box
-          key={p.id}
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            mb: 1.5,
-            px: 1.25,
-            py: 1,
-            border: "1px solid #E4E7EC",
-            borderRadius: 1.5,
-            gap: 1,
-          }}
-        >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-            <Clock size={14} color="#98A2B3" strokeWidth={1.5} />
-            <Typography sx={{ fontSize: "0.75rem", color: "#344054" }}>{p.fecha}</Typography>
-          </Box>
-          <Typography sx={{ fontSize: "0.75rem", fontWeight: 500, color: "#667085", flexShrink: 0 }}>
-            {formatMonto(p.monto)}
-          </Typography>
-        </Box>
-      ))}
-
-      {/* Historial de pagos */}
-      <Typography sx={{ fontSize: "0.75rem", color: "#667085", fontWeight: 500, mb: 1 }}>
-        Historial de pagos
-      </Typography>
-
-      <Box sx={{ border: "1px solid #E4E7EC", borderRadius: 2, overflow: "hidden" }}>
-        {historialPagos.map((p: PagoItem, index: number) => (
-          <Box
-            key={p.id}
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              px: 1.5,
-              py: 1.25,
-              gap: 1,
-              borderBottom: index < historialPagos.length - 1 ? "1px solid #E4E7EC" : "none",
-            }}
-          >
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-              <Box
-                sx={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  bgcolor: "#D0D5DD",
-                  flexShrink: 0,
-                }}
-              />
-              <Typography sx={{ fontSize: "0.75rem", color: "#344054" }}>{p.fecha}</Typography>
+      {cobros.length === 0 ? (
+        <EmptyState message="No hay cobros registrados" />
+      ) : (
+        <Box sx={{ border: "1px solid #E4E7EC", borderRadius: 2, overflow: "hidden" }}>
+          {cobros.map((cobro, index) => (
+            <Box
+              key={cobro.id}
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                px: 1.5,
+                py: 1.25,
+                gap: 1,
+                borderBottom: index < cobros.length - 1 ? "1px solid #E4E7EC" : "none",
+              }}
+            >
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                <Box
+                  sx={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    bgcolor: "#D0D5DD",
+                    flexShrink: 0,
+                  }}
+                />
+                <Typography sx={{ fontSize: "0.75rem", color: "#344054" }}>
+                  {formatLongDate(cobro.fecha)}
+                </Typography>
+              </Box>
+              <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, color: "#101828", flexShrink: 0 }}>
+                {formatMonto(cobro.monto)}
+              </Typography>
             </Box>
-            <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, color: "#101828", flexShrink: 0 }}>
-              {formatMonto(p.monto)}
-            </Typography>
-          </Box>
-        ))}
-      </Box>
+          ))}
+        </Box>
+      )}
     </Box>
   );
 }
 
-export function ActivitySidebar() {
-  const [tab, setTab] = useState<"entregas" | "pagos">("entregas");
+export interface ActivitySidebarProps {
+  /** Días con entregas programadas, de hoy en adelante. */
+  entregas: SupplierDashboardEntregaGrupo[];
+  /** Cobros ya aplicados, del más reciente al más antiguo. */
+  cobros: SupplierDashboardCobro[];
+}
+
+export function ActivitySidebar({ entregas, cobros }: ActivitySidebarProps) {
+  const [tab, setTab] = useState<"entregas" | "cobros">("entregas");
 
   return (
     <SidebarContainer>
@@ -246,12 +241,12 @@ export function ActivitySidebar() {
         <TabBtn selected={tab === "entregas"} onClick={() => setTab("entregas")}>
           Entregas
         </TabBtn>
-        <TabBtn selected={tab === "pagos"} onClick={() => setTab("pagos")}>
-          Pagos
+        <TabBtn selected={tab === "cobros"} onClick={() => setTab("cobros")}>
+          Cobros
         </TabBtn>
       </TabRow>
 
-      {tab === "entregas" ? <EntregasTab /> : <PagosTab />}
+      {tab === "entregas" ? <EntregasTab entregas={entregas} /> : <CobrosTab cobros={cobros} />}
     </SidebarContainer>
   );
 }
