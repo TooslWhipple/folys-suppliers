@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import {
+  Alert,
   CircularProgress,
   InputAdornment,
   IconButton,
@@ -16,7 +17,10 @@ import {
   Email as EmailIcon,
   Lock as LockIcon,
 } from "@mui/icons-material";
-import { useSupplierAuth } from "@/hooks/useSupplierAuth";
+import {
+  useSupplierAuth,
+  OTP_DELIVERY_FAILED_STATUS,
+} from "@/hooks/useSupplierAuth";
 import {
   PageContainer,
   LeftPanel,
@@ -29,7 +33,7 @@ import {
 } from "@/styles/login/styles";
 
 export default function LoginPage() {
-  const { login, isLoading, error, setError } = useSupplierAuth();
+  const { login, isLoading, error, clearError } = useSupplierAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,6 +42,12 @@ export default function LoginPage() {
   const isValidPassword = password.length >= 8;
   const passwordError = password && !isValidPassword ? "La contraseña debe tener al menos 8 caracteres" : "";
   const canSubmit = trimmedEmail.length > 0 && isValidPassword;
+
+  // El 502 no habla de las credenciales —esas eran buenas— sino del envío del
+  // código, así que se avisa aparte y sin marcar los campos en rojo.
+  const deliveryError =
+    error?.status === OTP_DELIVERY_FAILED_STATUS ? error.message : "";
+  const credentialsError = error && !deliveryError ? error.message : "";
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,10 +79,10 @@ export default function LoginPage() {
               type="email"
               value={email}
               onChange={(e) => {
-                if (error) setError(null);
+                if (error) clearError();
                 setEmail(e.target.value);
               }}
-              error={!!error}
+              error={!!credentialsError}
               helperText=""
               fullWidth
               autoComplete="email"
@@ -94,11 +104,11 @@ export default function LoginPage() {
               type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => {
-                if (error) setError(null);
+                if (error) clearError();
                 setPassword(e.target.value);
               }}
-              error={!!error || !!passwordError}
-              helperText={error || passwordError || ""}
+              error={!!credentialsError || !!passwordError}
+              helperText={credentialsError || passwordError || ""}
               fullWidth
               autoComplete="current-password"
               slotProps={{
@@ -123,6 +133,12 @@ export default function LoginPage() {
                 },
               }}
             />
+
+            {deliveryError && (
+              <Alert severity="error" sx={{ width: "100%" }}>
+                {deliveryError}
+              </Alert>
+            )}
 
             <Button
               fullWidth

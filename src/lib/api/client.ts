@@ -222,6 +222,14 @@ export const isApiError = (error: unknown): error is ApiError => {
   return error !== null && typeof error === "object" && "message" in error;
 };
 
+export const getErrorStatus = (error: unknown): number | null => {
+  if (!error || typeof error !== "object") return null;
+  const status = (error as { response?: { status?: number } }).response?.status;
+  if (typeof status === "number") return status;
+  const flatStatus = (error as { status?: number }).status;
+  return typeof flatStatus === "number" ? flatStatus : null;
+};
+
 export const getErrorMessage = (error: unknown): string => {
   if (
     error &&

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   Alert,
@@ -11,7 +11,10 @@ import {
   Typography,
 } from "@mui/material";
 import { ArrowBack as ArrowBackIcon, Pin as PinIcon } from "@mui/icons-material";
-import { useSupplierAuth } from "@/hooks/useSupplierAuth";
+import {
+  useSupplierAuth,
+  OTP_TOO_MANY_ATTEMPTS_STATUS,
+} from "@/hooks/useSupplierAuth";
 import { authService } from "@/services/auth.service";
 import { getErrorMessage } from "@/lib/api/client";
 import {
@@ -29,12 +32,16 @@ import {
 const OTP_LENGTH = 6;
 const OTP_REGEX = /^\d{6}$/;
 
-function ValidateOtpForm() {
-  const searchParams = useSearchParams();
+export default function ValidateOtpPage() {
   const router = useRouter();
-  const email = searchParams.get("email") ?? "";
-
-  const { validateOtp, isLoading, error, setError } = useSupplierAuth();
+  const {
+    pendingEmail,
+    isAuthenticated,
+    validateOtp,
+    isLoading,
+    error,
+    clearError,
+  } = useSupplierAuth();
 
   const [otp, setOtp] = useState("");
   const [resendLoading, setResendLoading] = useState(false);
@@ -43,7 +50,18 @@ function ValidateOtpForm() {
 
   const otpTrimmed = otp.replace(/\D/g, "").slice(0, OTP_LENGTH);
   const isValidOtp = OTP_REGEX.test(otpTrimmed);
-  const canSubmit = isValidOtp && !isLoading;
+  // Agotados los intentos, el código vigente ya no se evalúa aunque sea el
+  // bueno: insistir solo devuelve otro 429, hay que pedir uno nuevo.
+  const attemptsExhausted = error?.status === OTP_TOO_MANY_ATTEMPTS_STATUS;
+  const canSubmit = isValidOtp && !isLoading && !attemptsExhausted;
+
+  // Sin correo pendiente no hay nada que validar: el back resuelve el OTP por
+  // el proveedor, no por el navegador. Se vuelve al login a pedir uno nuevo.
+  useEffect(() => {
+    if (!pendingEmail && !isAuthenticated) {
+      router.replace("/login");
+    }
+  }, [isAuthenticated, pendingEmail, router]);
 
   const handleBackToLogin = (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
@@ -53,16 +71,21 @@ function ValidateOtpForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
-    setError(null);
+    setResendError(null);
+    setResendSuccess(false);
     await validateOtp(otpTrimmed);
   };
 
   const handleResend = async () => {
+    if (!pendingEmail) return;
     setResendError(null);
     setResendSuccess(false);
     setResendLoading(true);
     try {
-      await authService.resendOtp(email);
+      await authService.resendOtp(pendingEmail);
+      // El código nuevo estrena intentos: se limpia el 429 del anterior.
+      clearError();
+      setOtp("");
       setResendSuccess(true);
     } catch (err) {
       setResendError(getErrorMessage(err) || "No se pudo reenviar el código.");
@@ -122,7 +145,13 @@ function ValidateOtpForm() {
               }}
             />
 
-            {error && <Alert severity="error">{error}</Alert>}
+            {error && (
+              <Alert severity={attemptsExhausted ? "warning" : "error"}>
+                {attemptsExhausted
+                  ? `${error.message} Usa "Reenviar" para recibir uno nuevo.`
+                  : error.message}
+              </Alert>
+            )}
             {resendError && <Alert severity="error">{resendError}</Alert>}
             {resendSuccess && (
               <Alert severity="success">Te enviamos un nuevo código.</Alert>
@@ -147,7 +176,7 @@ function ValidateOtpForm() {
               variant="text"
               type="button"
               onClick={handleResend}
-              disabled={resendLoading || !email}
+              disabled={resendLoading || !pendingEmail}
             >
               {resendLoading ? (
                 <CircularProgress size={18} color="inherit" />
@@ -159,13 +188,5 @@ function ValidateOtpForm() {
         </FormWrapper>
       </RightPanel>
     </PageContainer>
-  );
-}
-
-export default function ValidateOtpPage() {
-  return (
-    <Suspense>
-      <ValidateOtpForm />
-    </Suspense>
   );
 }
