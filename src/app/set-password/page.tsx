@@ -94,7 +94,7 @@ function SetPasswordForm() {
 
           {error && (
             <Alert severity="error" sx={{ width: "100%" }}>
-              {error}
+              {error.message}
             </Alert>
           )}
 

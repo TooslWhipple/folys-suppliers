@@ -10,9 +10,12 @@ export interface SupplierUser {
 export interface AuthState {
   token: string | null;
   user: SupplierUser | null;
+  /** Correo del proveedor que ya pasó el login y espera validar su OTP. */
+  pendingEmail: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   setAuth: (token: string, user: SupplierUser) => void;
+  setPendingEmail: (email: string | null) => void;
   setToken: (token: string) => void;
   logout: () => void;
   setUser: (user: SupplierUser) => void;
@@ -24,6 +27,7 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       token: null,
       user: null,
+      pendingEmail: null,
       isLoading: false,
       isAuthenticated: false,
 
@@ -31,10 +35,13 @@ export const useAuthStore = create<AuthState>()(
         set({
           token,
           user,
+          pendingEmail: null,
           isAuthenticated: true,
           isLoading: false,
         });
       },
+
+      setPendingEmail: (pendingEmail: string | null) => set({ pendingEmail }),
 
       setToken: (token: string) => {
         set({ token, isAuthenticated: true });
@@ -44,6 +51,7 @@ export const useAuthStore = create<AuthState>()(
         set({
           token: null,
           user: null,
+          pendingEmail: null,
           isAuthenticated: false,
         });
       },
@@ -58,6 +66,7 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         token: state.token,
         user: state.user,
+        pendingEmail: state.pendingEmail,
         isAuthenticated: state.isAuthenticated,
       }),
       onRehydrateStorage: () => (state) => {

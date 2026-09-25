@@ -62,11 +62,11 @@ export const authService = {
       )
       .then(unwrap),
 
-  validateOtp: (otp: string): Promise<ValidateOtpResponse> =>
+  validateOtp: (otp: string, email: string): Promise<ValidateOtpResponse> =>
     api
       .post<ApiResponse<ValidateOtpResponse>>(
         "/supplier-portal/auth/validate-otp",
-        { otp },
+        { otp, email },
         AUTH_CREDENTIALS
       )
       .then(unwrap),
