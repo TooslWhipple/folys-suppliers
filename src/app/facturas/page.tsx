@@ -23,7 +23,7 @@ import {
   type SupplierInvoiceStatusFilter,
   type SupplierInvoicesResponse,
 } from "@/services/invoices.service";
-import numeral from "numeral";
+import { formatCurrency } from "@/lib/money";
 import type { TabOption } from "@/components/TabFilters/TabFilters";
 
 const STATUS_TABS: TabOption[] = [
@@ -187,7 +187,7 @@ export default function FacturasPage() {
                   Pendiente de cobro
                 </Typography>
                 <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                  {numeral(summary?.pendienteCobro ?? 0).format("$0,0.00")}
+                  {formatCurrency(summary?.pendienteCobro ?? 0)}
                 </Typography>
               </StatsCard>
               <StatsCard>
@@ -195,7 +195,7 @@ export default function FacturasPage() {
                   Pendiente por facturar
                 </Typography>
                 <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                  {numeral(summary?.pendienteFacturar ?? 0).format("$0,0.00")}
+                  {formatCurrency(summary?.pendienteFacturar ?? 0)}
                 </Typography>
               </StatsCard>
             </Box>
@@ -233,7 +233,7 @@ export default function FacturasPage() {
                       variant={INVOICE_STATUS_CHIP_VARIANTS[item.estatus]}
                     />
                   </Box>
-                  <Typography variant="body2">{numeral(item.total).format("$0,0.00")}</Typography>
+                  <Typography variant="body2">{formatCurrency(item.total)}</Typography>
                 </TableDataRow>
               ))}
 
@@ -329,7 +329,7 @@ export default function FacturasPage() {
                         </Typography>
                       </Box>
                       <Typography variant="body2" sx={{ fontWeight: 600, flexShrink: 0 }}>
-                        {numeral(item.monto).format("$0,0.00")}
+                        {formatCurrency(item.monto)}
                       </Typography>
                     </Box>
                   </Box>

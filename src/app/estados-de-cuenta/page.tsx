@@ -23,7 +23,7 @@ import {
   type AccountStatementPayment,
   type AccountStatementResponse,
 } from "@/services/invoices.service";
-import numeral from "numeral";
+import { formatCurrency } from "@/lib/money";
 import type { TabOption } from "@/components/TabFilters/TabFilters";
 
 const MESES = [
@@ -138,7 +138,7 @@ export default function EstadosCuentaPage() {
               Pendiente de cobro
             </Typography>
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
-              {numeral(summary?.pendingAmount ?? 0).format("$0,0.00")}
+              {formatCurrency(summary?.pendingAmount ?? 0)}
             </Typography>
           </StatsCard>
           <StatsCard>
@@ -146,7 +146,7 @@ export default function EstadosCuentaPage() {
               Pendiente por facturar
             </Typography>
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
-              {numeral(summary?.pendienteFacturar ?? 0).format("$0,0.00")}
+              {formatCurrency(summary?.pendienteFacturar ?? 0)}
             </Typography>
           </StatsCard>
         </Box>
@@ -235,10 +235,10 @@ export default function EstadosCuentaPage() {
                       <Typography variant="body2">{item.concepto}</Typography>
                     </Box>
                     <Typography variant="body2" sx={{ textAlign: "right" }}>
-                      {!esPedido ? numeral(item.monto).format("$0,0.00") : ""}
+                      {!esPedido ? formatCurrency(item.monto) : ""}
                     </Typography>
                     <Typography variant="body2" sx={{ textAlign: "right" }}>
-                      {esPedido ? numeral(item.monto).format("$0,0.00") : ""}
+                      {esPedido ? formatCurrency(item.monto) : ""}
                     </Typography>
                   </TDataRow>
                 );
@@ -260,10 +260,10 @@ export default function EstadosCuentaPage() {
                   Subtotal
                 </Typography>
                 <Typography variant="body2" sx={{ textAlign: "right" }}>
-                  {numeral(totalCargo).format("$0,0.00")}
+                  {formatCurrency(totalCargo)}
                 </Typography>
                 <Typography variant="body2" sx={{ textAlign: "right" }}>
-                  {numeral(totalVenta).format("$0,0.00")}
+                  {formatCurrency(totalVenta)}
                 </Typography>
               </Box>
 
@@ -284,7 +284,7 @@ export default function EstadosCuentaPage() {
                 </Typography>
                 <Box />
                 <Typography variant="body2" sx={{ fontWeight: 700, textAlign: "right" }}>
-                  {numeral(grandTotal).format("$0,0.00")}
+                  {formatCurrency(grandTotal)}
                 </Typography>
               </Box>
             </>
@@ -333,7 +333,7 @@ export default function EstadosCuentaPage() {
                     />
                   </Box>
                   <Typography variant="body2" sx={{ textAlign: "right" }}>
-                    {numeral(pago.monto).format("$0,0.00")}
+                    {formatCurrency(pago.monto)}
                   </Typography>
                 </TDataRow>
               ))}
@@ -414,7 +414,7 @@ export default function EstadosCuentaPage() {
                 Monto
               </Typography>
               <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                {numeral(selectedPago.monto).format("$0,0.00")}
+                {formatCurrency(selectedPago.monto)}
               </Typography>
             </Box>
 

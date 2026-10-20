@@ -16,7 +16,7 @@ import {
   type SupplierInvoiceDetail,
   type SupplierInvoiceEstatus,
 } from "@/services/invoices.service";
-import numeral from "numeral";
+import { formatCurrency } from "@/lib/money";
 
 const STATUS_VARIANTS: Record<SupplierInvoiceEstatus, "warning" | "success"> = {
   pendiente: "warning",
@@ -192,7 +192,7 @@ export function FacturaDetalleClient({ invoiceId }: FacturaDetalleClientProps) {
                   Total
                 </Typography>
                 <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                  {numeral(factura.total).format("$0,0.00")}
+                  {formatCurrency(factura.total)}
                 </Typography>
               </StatsCard>
               <StatsCard>
@@ -200,7 +200,7 @@ export function FacturaDetalleClient({ invoiceId }: FacturaDetalleClientProps) {
                   Pagado
                 </Typography>
                 <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                  {numeral(factura.pagado).format("$0,0.00")}
+                  {formatCurrency(factura.pagado)}
                 </Typography>
               </StatsCard>
               <StatsCard>
@@ -208,7 +208,7 @@ export function FacturaDetalleClient({ invoiceId }: FacturaDetalleClientProps) {
                   Saldo
                 </Typography>
                 <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                  {numeral(factura.saldo).format("$0,0.00")}
+                  {formatCurrency(factura.saldo)}
                 </Typography>
               </StatsCard>
             </Box>
@@ -244,7 +244,7 @@ export function FacturaDetalleClient({ invoiceId }: FacturaDetalleClientProps) {
                         <Typography variant="body2">{abono.referencia || "—"}</Typography>
                         <Typography variant="body2">{abono.descripcion || "—"}</Typography>
                         <Typography variant="body2" sx={{ textAlign: "right" }}>
-                          {numeral(abono.monto).format("$0,0.00")}
+                          {formatCurrency(abono.monto)}
                         </Typography>
                       </TDataRow>
                     ))}
@@ -265,7 +265,7 @@ export function FacturaDetalleClient({ invoiceId }: FacturaDetalleClientProps) {
                           Total abonado
                         </Typography>
                         <Typography variant="body2" sx={{ fontWeight: 700, minWidth: 120, textAlign: "right" }}>
-                          {numeral(totalAbonos).format("$0,0.00")}
+                          {formatCurrency(totalAbonos)}
                         </Typography>
                       </Box>
                     )}

@@ -7,8 +7,10 @@ export interface OrderItem {
   productId: number;
   quantity: number;
   receivedQuantity: number;
+  /** unit_price del renglón, en la moneda del renglón. */
   cost: number | null;
   currency: string | null;
+  exchangeRate: number | null;
 }
 
 // ERP full order response types
@@ -22,14 +24,27 @@ export interface OrderItemFull {
   created_at: string;
   updated_at: string | null;
   deleted_at: string | null;
+  // Decimal de Prisma serializado como string
+  unit_price: string;
+  currency: "MXN" | "USD" | null;
+  exchange_rate: string | null;
   product: {
     id: number;
     code: string;
     short_name: string;
-    list_cost: string;
     product_images: string[];
     product_suppliers: { supplier_id: number }[];
+    currency: "MXN" | "USD" | null;
+    // Decimal de Prisma serializado como string
+    exchange_rate: string | null;
   };
+}
+
+export interface OrderFullTotals {
+  currency: string;
+  subtotal: number;
+  iva: number;
+  total: number;
 }
 
 export interface OrderFull {
@@ -54,6 +69,7 @@ export interface OrderFull {
   client: null;
   requested_by_user: null;
   order_items: OrderItemFull[];
+  totals: OrderFullTotals;
   order_deliveries: OrderDelivery[];
 }
 
@@ -91,6 +107,8 @@ export interface Order {
   createdAt: string;
   updatedAt: string | null;
   items: OrderItem[];
+  /** Subtotal del pedido convertido a MXN, sin IVA. */
+  subtotalMxn: number;
 }
 
 export interface OrderStats {
