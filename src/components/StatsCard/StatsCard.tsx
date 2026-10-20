@@ -1,6 +1,7 @@
 "use client";
 
 import numeral from "numeral";
+import { formatCurrency } from "@/lib/money";
 import { Box, Grid, Stack, Typography } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { ArrowDown, ArrowUp } from "lucide-react";
@@ -50,14 +51,14 @@ export function StatsCard({
 }: StatsCardProps) {
   const formatValue = (val: number): string => {
     if (isCurrency) {
-      return numeral(val).format("$0,0.00");
+      return formatCurrency(val);
     }
     return numeral(val).format("0,0");
   };
 
   const formatComparisonValue = (val: number): string => {
     if (isCurrency) {
-      return numeral(val).format("$0,0.00");
+      return formatCurrency(val);
     }
     return numeral(val).format("0,0");
   };

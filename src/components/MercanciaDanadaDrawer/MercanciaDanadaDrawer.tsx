@@ -3,7 +3,7 @@
 import { Box, Typography, IconButton, Modal, Paper, Skeleton } from "@mui/material";
 import { Close } from "@mui/icons-material";
 import { Clock } from "lucide-react";
-import numeral from "numeral";
+import { formatCurrency } from "@/lib/money";
 import { StatusChip } from "@/components/StatusChip/StatusChip";
 import type { DamagedProductDetail } from "@/services/damaged-products.service";
 
@@ -246,7 +246,7 @@ export function MercanciaDanadaDrawer({
                 {item.repairCost !== null && (
                   <Field
                     label="Costo de reparación"
-                    value={numeral(item.repairCost).format("$0,0.00")}
+                    value={formatCurrency(item.repairCost)}
                   />
                 )}
               </Box>

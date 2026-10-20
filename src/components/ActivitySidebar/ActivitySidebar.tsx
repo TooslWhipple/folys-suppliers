@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Box, Typography } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { Package, CircleDollarSign } from "lucide-react";
-import numeral from "numeral";
+import { formatCurrency } from "@/lib/money";
 import { colors } from "@/lib/theme";
 import { formatDayMonth, formatLongDate } from "@/lib/dates";
 import type {
@@ -47,7 +47,7 @@ const TabBtn = styled("button")<{ selected?: boolean }>(({ selected }) => ({
 }));
 
 function formatMonto(value: number) {
-  return numeral(value).format("$0,0.00");
+  return formatCurrency(value);
 }
 
 /** Mismo mensaje centrado y discreto que usa `TableCrud` cuando no hay filas. */

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button, Skeleton, Table, TableBody, Typography, TablePagination } from "@mui/material";
 import { MoreVert as MoreVertIcon } from "@mui/icons-material";
 import numeral from "numeral";
+import { formatCurrency } from "@/lib/money";
 import {
   TableWrapper,
   StyledTableContainer,
@@ -215,7 +216,7 @@ export function TableCrud<T>({
       case "currency":
         const symbol = column.currencySymbol || "$";
         return typeof rawValue === "number"
-          ? `${symbol}${numeral(rawValue).format("0,0.00")}`
+          ? formatCurrency(rawValue, null, { symbol })
           : String(rawValue ?? "");
 
       case "percentage":

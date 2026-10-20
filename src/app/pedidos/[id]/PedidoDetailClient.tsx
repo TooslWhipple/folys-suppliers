@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useApi } from "@/hooks/useApi";
 import { ordersService, OrderFull, OrderItemFull, DeliveryMethod } from "@/services/orders.service";
+import { formatCurrency, calculateOrderTotals, resolveExchangeRate } from "@/lib/money";
 import { DeliveryDatePicker, formatShortDate } from "@/components/DeliveryDatePicker/DeliveryDatePicker";
+import { ORDER_STATUS_LABELS } from "@/lib/statusChips";
+import type { SupplierOrderStatus } from "@/services/dashboard.service";
 import {
   Box,
   Typography,
@@ -34,15 +37,6 @@ function toDateOnlyString(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-const STATUS_MAP: Record<string, string> = {
-  pending: "Pendiente",
-  approved: "Aprobado",
-  in_process: "En proceso",
-  partially_received: "Parcialmente surtido",
-  received: "Surtido",
-  cancelled: "Cancelado",
-};
-
 interface PedidoDetailClientProps {
   orderId: number;
 }
@@ -53,7 +47,6 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<OrderItemFull[]>([]);
   const [originalQuantities, setOriginalQuantities] = useState<Record<number, number>>({});
-  const [hasChanges, setHasChanges] = useState(false);
   const [pickerItemId, setPickerItemId] = useState<number | null>(null);
   const [deliveryDates, setDeliveryDates] = useState<Record<number, Date>>({});
   const [deliveryMethodIds, setDeliveryMethodIds] = useState<Record<number, number>>({});
@@ -94,6 +87,21 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Fechas y métodos de entrega guardados en el pedido cargado
+  const originalDeliveries = useMemo(() => {
+    const dates: Record<number, Date> = {};
+    const methods: Record<number, number> = {};
+    order?.order_deliveries?.forEach((delivery) => {
+      delivery.order_delivery_items?.forEach((item) => {
+        dates[item.order_item_id] = new Date(delivery.delivery_date);
+        if (delivery.delivery_method_id) {
+          methods[item.order_item_id] = delivery.delivery_method_id;
+        }
+      });
+    });
+    return { dates, methods };
+  }, [order?.order_deliveries]);
+
   // Sync items and delivery data when order data changes
   useEffect(() => {
     if (order?.order_items) {
@@ -103,26 +111,55 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
       order.order_items.forEach((i) => { orig[i.id] = i.requested_quantity; });
       setOriginalQuantities(orig);
     }
-    // Load saved delivery dates and methods from order_deliveries
-    if (order?.order_deliveries && order.order_deliveries.length > 0) {
-      const dates: Record<number, Date> = {};
-      const methods: Record<number, number> = {};
-      order.order_deliveries.forEach(delivery => {
-        // Find the order_item_id from order_delivery_items
-        if (delivery.order_delivery_items && delivery.order_delivery_items.length > 0) {
-          delivery.order_delivery_items.forEach(item => {
-            dates[item.order_item_id] = new Date(delivery.delivery_date);
-            if (delivery.delivery_method_id) {
-              methods[item.order_item_id] = delivery.delivery_method_id;
-            }
-          });
-        }
-      });
-      setDeliveryDates(dates);
-      setDeliveryMethodIds(methods);
+    // Restore saved delivery dates and methods from order_deliveries
+    if (order) {
+      setDeliveryDates(originalDeliveries.dates);
+      setDeliveryMethodIds(originalDeliveries.methods);
     }
     // eslint-disable-next-line
-  }, [order?.order_items, order?.order_deliveries]);
+  }, [order?.order_items, originalDeliveries]);
+
+  // Totales: los del back mientras no haya cantidades sin guardar; si el
+  // proveedor las cambió, se recalculan en vivo con la misma fórmula.
+  const totals = useMemo(() => {
+    if (!order?.totals) return null;
+    const quantitiesChanged = items.some(
+      (item) => item.requested_quantity !== originalQuantities[item.id]
+    );
+    if (!quantitiesChanged) return order.totals;
+    return calculateOrderTotals(
+      items.map((item) => ({
+        unitPrice: Number(item.unit_price),
+        quantity: item.requested_quantity,
+        currency: item.currency,
+        exchangeRate: resolveExchangeRate(
+          {
+            currency: item.currency,
+            exchangeRate: item.exchange_rate === null ? null : Number(item.exchange_rate),
+          },
+          {
+            currency: item.product.currency,
+            exchangeRate:
+              item.product.exchange_rate === null ? null : Number(item.product.exchange_rate),
+          },
+        ),
+      }))
+    );
+  }, [order?.totals, items, originalQuantities]);
+
+  // Hay cambios sin guardar: cantidades, fechas o métodos de entrega distintos
+  // a los del pedido cargado.
+  const hasChanges = useMemo(() => {
+    const { dates, methods } = originalDeliveries;
+    return items.some((item) => {
+      if (item.requested_quantity !== originalQuantities[item.id]) return true;
+      if (deliveryMethodIds[item.id] !== methods[item.id]) return true;
+      const current = deliveryDates[item.id];
+      const original = dates[item.id];
+      if (!current || !original) return current !== original;
+      return toDateOnlyString(current) !== toDateOnlyString(original);
+    });
+  }, [items, originalQuantities, deliveryDates, deliveryMethodIds, originalDeliveries]);
 
   const handleBack = () => {
     router.push("/pedidos");
@@ -137,27 +174,6 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
     });
   };
 
-  const formatCurrency = (value: number | string | null): string => {
-    if (value === null || value === undefined) return "$0.00";
-    const numValue = typeof value === "string" ? parseFloat(value) : value;
-    return `$${numValue.toLocaleString("es-MX", { minimumFractionDigits: 2 })}`;
-  };
-
-  const calculateSubtotal = (): number => {
-    return items.reduce((sum, item) => {
-      const cost = parseFloat(item.product.list_cost || "0");
-      return sum + cost * item.requested_quantity;
-    }, 0);
-  };
-
-  const calculateIVA = (): number => {
-    return calculateSubtotal() * 0.16;
-  };
-
-  const calculateTotal = (): number => {
-    return calculateSubtotal() + calculateIVA();
-  };
-
   const updateItemQuantity = (itemId: number, delta: number) => {
     setItems((prev) =>
       prev.map((item) => {
@@ -169,7 +185,6 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
         return { ...item, requested_quantity: Math.max(0, newQty) };
       })
     );
-    setHasChanges(true);
   };
 
   const handleUpdateData = async () => {
@@ -188,9 +203,6 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
 
       // Reload order to get fresh data
       await loadOrder();
-      setHasChanges(false);
-      setDeliveryDates({}); // Clear local delivery dates after save
-      setDeliveryMethodIds({}); // Clear local delivery method IDs after save
 
       setSnackbar({ open: true, message: "Datos actualizados exitosamente", severity: "success" });
     } catch {
@@ -201,12 +213,9 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
   const handleDiscardChanges = () => {
     if (order?.order_items) {
       setItems(order.order_items);
-      setDeliveryDates({});
-      setDeliveryMethodIds({});
-      setHasChanges(false);
+      setDeliveryDates(originalDeliveries.dates);
+      setDeliveryMethodIds(originalDeliveries.methods);
     }
-    // Navigate back to orders list
-    router.push("/pedidos");
   };
 
   if (loading) {
@@ -263,6 +272,7 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
             <Button
               variant="outlined"
               onClick={handleDiscardChanges}
+              disabled={!hasChanges}
               sx={{
                 borderColor: "#d0d5dd",
                 color: "#344054",
@@ -280,6 +290,7 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
             <Button
               variant="contained"
               onClick={handleUpdateData}
+              disabled={!hasChanges}
               sx={{
                 bgcolor: "#1570EF",
                 textTransform: "none",
@@ -317,7 +328,7 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
               <Typography variant="body2" sx={{ fontSize: "0.875rem", color: "text.secondary" }}>Pedido:</Typography>
               <Typography variant="body2" sx={{ fontSize: "0.875rem", color: "#F04438", fontWeight: 500 }}>
-                {STATUS_MAP[order.status] || order.status}
+                {ORDER_STATUS_LABELS[order.status as SupplierOrderStatus] ?? order.status}
               </Typography>
             </Box>
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
@@ -351,9 +362,6 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
               <Box sx={{ flex: 1 }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 700, fontSize: "1rem", color: "#101828" }}>
                   {order.branch?.name || "Mabe S.A. de C.V"}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.875rem", mt: 0.25 }}>
-                  {order.created_by || "123456789"}
                 </Typography>
               </Box>
               <ArrowForward sx={{ color: "#98a2b3", fontSize: 20, flexShrink: 0 }} />
@@ -426,7 +434,7 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
                     <CalendarToday sx={{ fontSize: 16, color: deliveryDates[item.id] ? "#1570EF" : "#667085", flexShrink: 0 }} />
                   </Box>
                   <Typography variant="body2" sx={{ textAlign: "right", fontWeight: 500, fontSize: "0.875rem", color: "#101828" }}>
-                    {formatCurrency(item.product.list_cost)}
+                    {formatCurrency(item.unit_price, item.currency)}
                   </Typography>
                   <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
                     <IconButton size="small" onClick={() => updateItemQuantity(item.id, -1)} disabled={item.requested_quantity <= 0}
@@ -457,7 +465,6 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
               if (pickerItemId !== null) {
                 setDeliveryDates(prev => ({ ...prev, [pickerItemId]: date }));
                 setDeliveryMethodIds(prev => ({ ...prev, [pickerItemId]: methodId }));
-                setHasChanges(true);
                 setPickerItemId(null);
               }
             }}
@@ -483,7 +490,7 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
                   Subtotal
                 </Typography>
                 <Typography variant="body2" sx={{ fontWeight: 500, fontSize: "0.875rem", color: "#101828" }}>
-                  {formatCurrency(calculateSubtotal())}
+                  {formatCurrency(totals?.subtotal, totals?.currency)}
                 </Typography>
               </Box>
 
@@ -492,7 +499,7 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
                   IVA
                 </Typography>
                 <Typography variant="body2" sx={{ fontWeight: 500, fontSize: "0.875rem", color: "#101828" }}>
-                  {formatCurrency(calculateIVA())}
+                  {formatCurrency(totals?.iva, totals?.currency)}
                 </Typography>
               </Box>
 
@@ -512,7 +519,7 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
                   Total
                 </Typography>
                 <Typography variant="body2" sx={{ fontWeight: 700, fontSize: "0.875rem", color: "#101828" }}>
-                  {formatCurrency(calculateTotal())}
+                  {formatCurrency(totals?.total, totals?.currency)}
                 </Typography>
               </Box>
             </Paper>

@@ -14,6 +14,8 @@ import { useApi } from "@/hooks/useApi";
 import { ordersService, Order, OrderStats } from "@/services/orders.service";
 import type { PaginatedResponse } from "@/types/pagination";
 import { useNotification } from "@/contexts/NotificationContext";
+import { ORDER_STATUS_LABELS, ORDER_STATUS_CHIP_VARIANTS } from "@/lib/statusChips";
+import type { SupplierOrderStatus } from "@/services/dashboard.service";
 import { useRouter } from "next/navigation";
 
 type Pedido = {
@@ -21,6 +23,8 @@ type Pedido = {
   pedido: string;
   fecha: string;
   articulosSolicitados: number;
+  /** Valor crudo de `OrderStatus` que emite el back. */
+  status: SupplierOrderStatus;
   estatus: string;
   pago: string;
   total: number;
@@ -28,15 +32,24 @@ type Pedido = {
 
 const STATUS_TABS: TabOption[] = [
   { label: "Todos", value: "all" },
-  { label: "Pendientes", value: "Pendiente" },
-  { label: "Surtidos", value: "Surtido" },
+  { label: "Pendientes", value: "pendientes" },
+  { label: "Entregados", value: "delivered" },
 ];
 
-const STATUS_CHIP_VARIANTS: Record<string, StatusChipVariant> = {
-  Pendiente: "pending",
-  Surtido: "success",
-  Pagado: "success",
+/** "Pendientes" agrupa todo pedido aún abierto: ni entregado ni cancelado. */
+const matchesTab = (status: SupplierOrderStatus, tab: string): boolean => {
+  if (tab === "pendientes") return status !== "delivered" && status !== "cancelled";
+  return status === tab;
 };
+
+// La columna guarda la etiqueta ya traducida; el mapa de variantes se deriva de
+// los mapas compartidos para que listado y detalle no puedan divergir.
+const STATUS_CHIP_VARIANTS: Record<string, StatusChipVariant> = Object.fromEntries(
+  (Object.keys(ORDER_STATUS_LABELS) as SupplierOrderStatus[]).map((status) => [
+    ORDER_STATUS_LABELS[status],
+    ORDER_STATUS_CHIP_VARIANTS[status],
+  ]),
+);
 
 const PAGO_CHIP_VARIANTS: Record<string, StatusChipVariant> = {
   Pendiente: "pending",
@@ -56,29 +69,16 @@ const formatDate = (dateString: string): string => {
 // Map Order to Pedido format
 const mapOrderToPedido = (order: Order): Pedido => {
   const itemCount = order.items?.length || 0;
-  const total = order.items?.reduce(
-    (sum, item) => sum + (item.quantity * (item.cost || 0)),
-    0
-  ) || 0;
-
-  // Map status from API to UI format
-  const statusMap: Record<string, string> = {
-    pending: "Pendiente",
-    approved: "Pendiente",
-    in_process: "Pendiente",
-    partially_received: "Pendiente",
-    received: "Surtido",
-    cancelled: "Pendiente",
-  };
 
   return {
     id: order.id.toString(),
     pedido: `PO-${order.id.toString().padStart(5, "0")}`,
     fecha: formatDate(order.orderDate),
     articulosSolicitados: itemCount,
-    estatus: statusMap[order.status] || "Pendiente",
+    status: order.status as SupplierOrderStatus,
+    estatus: ORDER_STATUS_LABELS[order.status as SupplierOrderStatus] ?? order.status,
     pago: "Pendiente", // This would come from a different API
-    total: total,
+    total: order.subtotalMxn,
   };
 };
 
@@ -128,7 +128,7 @@ export default function PedidosPage() {
 
     // Filter by tab
     if (activeTab !== "all") {
-      filtered = filtered.filter((p: Pedido) => p.estatus === activeTab);
+      filtered = filtered.filter((p: Pedido) => matchesTab(p.status, activeTab));
     }
 
     // Filter by search
