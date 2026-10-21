@@ -264,7 +264,7 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
               &gt;
             </Typography>
             <Typography variant="body2" sx={{ fontWeight: 500 }}>
-              {order.id}
+              {order.folio}
             </Typography>
           </Box>
 
@@ -318,7 +318,7 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
             Factura
           </Typography>
           <Typography variant="h5" sx={{ fontWeight: 700, mt: 0.25, fontSize: "1.75rem", lineHeight: 1.2 }}>
-            Pedido {order.id}
+            Pedido {order.folio}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, fontSize: "0.875rem" }}>
             Creado el {formatDate(order.order_date)}
