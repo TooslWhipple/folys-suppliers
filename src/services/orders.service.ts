@@ -100,6 +100,8 @@ export interface OrderDeliveryItem {
 
 export interface Order {
   id: number;
+  /** Folio oficial del ERP (`Orders.folio`). */
+  folio: string;
   supplierId: number;
   branchId: number;
   orderDate: string;
@@ -121,6 +123,8 @@ export interface GetOrdersParams {
   page?: number;
   limit?: number;
   status?: string;
+  /** Búsqueda por folio (server-side). */
+  search?: string;
 }
 
 export interface UpdateOrderItemData {
@@ -147,10 +151,11 @@ export const ordersService = {
    * @param params - Query parameters for pagination and filtering
    */
   async getOrders(params: GetOrdersParams): Promise<PaginatedResponse<Order>> {
-    const { page = 1, limit = 10, status } = params;
+    const { page = 1, limit = 10, status, search } = params;
 
     const queryParams: Record<string, string | number> = { page, limit };
     if (status) queryParams.status = status;
+    if (search) queryParams.search = search;
 
     const response = await get<{
       success: boolean;

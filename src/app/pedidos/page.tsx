@@ -17,6 +17,7 @@ import { useNotification } from "@/contexts/NotificationContext";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_CHIP_VARIANTS } from "@/lib/statusChips";
 import type { SupplierOrderStatus } from "@/services/dashboard.service";
 import { useRouter } from "next/navigation";
+import { useDebouncedValue } from "../catalogo/useDebouncedValue";
 
 type Pedido = {
   id: string;
@@ -32,15 +33,17 @@ type Pedido = {
 
 const STATUS_TABS: TabOption[] = [
   { label: "Todos", value: "all" },
-  { label: "Pendientes", value: "pendientes" },
+  { label: "Pendientes", value: "pending" },
   { label: "Entregados", value: "delivered" },
 ];
 
-/** "Pendientes" agrupa todo pedido aún abierto: ni entregado ni cancelado. */
-const matchesTab = (status: SupplierOrderStatus, tab: string): boolean => {
-  if (tab === "pendientes") return status !== "delivered" && status !== "cancelled";
-  return status === tab;
-};
+const SEARCH_DEBOUNCE_MS = 400;
+
+/**
+ * Valor de `status` que se manda al back según la pestaña. "Todos" no filtra;
+ * "pending" es el valor especial del back (todo salvo entregado y cancelado).
+ */
+const tabToStatus = (tab: string): string | undefined => (tab === "all" ? undefined : tab);
 
 // La columna guarda la etiqueta ya traducida; el mapa de variantes se deriva de
 // los mapas compartidos para que listado y detalle no puedan divergir.
@@ -72,7 +75,7 @@ const mapOrderToPedido = (order: Order): Pedido => {
 
   return {
     id: order.id.toString(),
-    pedido: `PO-${order.id.toString().padStart(5, "0")}`,
+    pedido: order.folio,
     fecha: formatDate(order.orderDate),
     articulosSolicitados: itemCount,
     status: order.status as SupplierOrderStatus,
@@ -93,15 +96,24 @@ export default function PedidosPage() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [searchValue, setSearchValue] = useState("");
 
-  // Load orders from API
+  const debouncedSearch = useDebouncedValue(searchValue, SEARCH_DEBOUNCE_MS);
+
+  // Búsqueda, pestaña y paginación son server-side: cada cambio dispara una
+  // petición nueva, nunca un recorte de la página ya cargada.
   const loadOrders = useCallback(async () => {
     await execute(
-      () => ordersService.getOrders({ page: page + 1, limit: rowsPerPage }),
+      () =>
+        ordersService.getOrders({
+          page: page + 1,
+          limit: rowsPerPage,
+          status: tabToStatus(activeTab),
+          search: debouncedSearch.trim() || undefined,
+        }),
       {
         showErrorNotification: true,
       }
     );
-  }, [execute, page, rowsPerPage]);
+  }, [execute, page, rowsPerPage, activeTab, debouncedSearch]);
 
   // Load stats from API
   const loadStats = useCallback(async () => {
@@ -111,43 +123,22 @@ export default function PedidosPage() {
     );
   }, [executeStats]);
 
-  // Initial load
   useEffect(() => {
     loadOrders();
-    loadStats();
-  }, [loadOrders, loadStats]);
+  }, [loadOrders]);
 
-  // Get data source from API
-  const sourceData = useMemo(() => {
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
+
+  const pedidos = useMemo(() => {
     return ordersData?.rows?.map(mapOrderToPedido) || [];
   }, [ordersData]);
-  console.log("🚀 ~ PedidosPage ~ sourceData:", sourceData)
 
-  const filteredPedidos = useMemo(() => {
-    let filtered: Pedido[] = sourceData;
-
-    // Filter by tab
-    if (activeTab !== "all") {
-      filtered = filtered.filter((p: Pedido) => matchesTab(p.status, activeTab));
-    }
-
-    // Filter by search
-    if (searchValue) {
-      const search = searchValue.toLowerCase();
-      filtered = filtered.filter((p: Pedido) =>
-        p.pedido.toLowerCase().includes(search) ||
-        p.fecha.toLowerCase().includes(search)
-      );
-    }
-
-    return filtered;
-  }, [activeTab, searchValue, sourceData]);
-  console.log("🚀 ~ PedidosPage ~ filteredPedidos:", filteredPedidos)
-
-  const paginatedPedidos = useMemo(() => {
-    const start = page * rowsPerPage;
-    return filteredPedidos.slice(start, start + rowsPerPage);
-  }, [filteredPedidos, page, rowsPerPage]);
+  const handleSearchChange = (value: string) => {
+    setSearchValue(value);
+    setPage(0);
+  };
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
@@ -201,7 +192,7 @@ export default function PedidosPage() {
 
   const tabs = STATUS_TABS.map((t) => ({
     ...t,
-    count: t.value === activeTab ? filteredPedidos.length : undefined,
+    count: t.value === activeTab ? ordersData?.total : undefined,
   }));
 
   const statsCards: StatsCardData[] = [
@@ -237,13 +228,13 @@ export default function PedidosPage() {
           onTabChange={handleTabChange}
           showSearch
           searchValue={searchValue}
-          onSearchChange={setSearchValue}
+          onSearchChange={handleSearchChange}
           searchPlaceholder="Buscar"
         />
 
         <TableCrud
           columns={columns}
-          rows={paginatedPedidos}
+          rows={pedidos}
           loading={apiLoading}
           rowKey="id"
           page={page}
