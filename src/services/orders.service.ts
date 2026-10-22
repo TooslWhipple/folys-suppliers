@@ -1,4 +1,4 @@
-import { get, put } from "./api";
+import { get, post, put } from "./api";
 import type { PaginatedResponse } from "@/types/pagination";
 
 export interface OrderItem {
@@ -7,6 +7,10 @@ export interface OrderItem {
   productId: number;
   quantity: number;
   receivedQuantity: number;
+  /** Cantidad aún por recibir: max(0, solicitada − recibida). */
+  pendingQuantity: number;
+  /** Fecha prometida de la línea (`YYYY-MM-DD`), null si aún no se fija. */
+  scheduledDeliveryDate: string | null;
   /** unit_price del renglón, en la moneda del renglón. */
   cost: number | null;
   currency: string | null;
@@ -20,6 +24,12 @@ export interface OrderItemFull {
   product_id: number;
   requested_quantity: number;
   delivered_quantity: number;
+  /** Lo que pidió Foly originalmente (el proveedor puede bajar `requested_quantity` al aceptar). */
+  original_requested_quantity: number;
+  pending_quantity: number;
+  /** Fecha prometida de la línea (`YYYY-MM-DD`). */
+  scheduled_delivery_date: string | null;
+  delivery_method_id: number | null;
   notes: string | null;
   created_at: string;
   updated_at: string | null;
@@ -47,11 +57,20 @@ export interface OrderFullTotals {
   total: number;
 }
 
+export interface OrderAllowedActions {
+  accept: boolean;
+  editQuantities: boolean;
+  editDeliveryDates: boolean;
+}
+
 export interface OrderFull {
   id: number;
   branch_id: number;
   folio: string;
   status: string;
+  accepted_at: string | null;
+  closed_at: string | null;
+  allowed_actions: OrderAllowedActions;
   requested_by: number | null;
   order_date: string;
   notes: string | null;
@@ -129,13 +148,26 @@ export interface GetOrdersParams {
 
 export interface UpdateOrderItemData {
   itemId: number;
-  requestedQuantity: number;
+  /** Solo se acepta con el pedido en `pending`; fuera de ahí el back responde 409. */
+  requestedQuantity?: number;
   deliveryDate?: string;
   deliveryMethodId?: number;
 }
 
 export interface UpdateOrderData {
   items: UpdateOrderItemData[];
+}
+
+export interface AcceptOrderItemData {
+  itemId: number;
+  confirmedQuantity: number;
+  /** `YYYY-MM-DD`; obligatoria si la cantidad confirmada es mayor que 0. */
+  deliveryDate?: string;
+  deliveryMethodId?: number;
+}
+
+export interface AcceptOrderData {
+  items: AcceptOrderItemData[];
 }
 
 export interface DeliveryMethod {
@@ -213,12 +245,25 @@ export const ordersService = {
    * @param orderId - Order ID
    * @param data - Order update data
    */
-  async updateOrder(orderId: number, data: UpdateOrderData): Promise<{ success: boolean; message: string }> {
+  async updateOrder(orderId: number, data: UpdateOrderData): Promise<OrderFull> {
     const response = await put<{
       success: boolean;
-      data: { success: boolean; message: string };
+      data: OrderFull;
       message?: string;
     }>(`/supplier-portal/orders/${orderId}`, data);
+    return response.data;
+  },
+
+  /**
+   * Accept a pending order: fixes confirmed quantities and promise dates per line.
+   * Afterwards quantities are locked.
+   */
+  async acceptOrder(orderId: number, data: AcceptOrderData): Promise<OrderFull> {
+    const response = await post<{
+      success: boolean;
+      data: OrderFull;
+      message?: string;
+    }>(`/supplier-portal/orders/${orderId}/accept`, data);
     return response.data;
   },
 

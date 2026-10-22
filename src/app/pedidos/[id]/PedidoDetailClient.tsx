@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { useApi } from "@/hooks/useApi";
+import { useNotification } from "@/contexts/NotificationContext";
+import { getErrorMessage } from "@/lib/api/client";
 import { ordersService, OrderFull, OrderItemFull, DeliveryMethod } from "@/services/orders.service";
 import { formatCurrency, calculateOrderTotals, resolveExchangeRate } from "@/lib/money";
 import { DeliveryDatePicker, formatShortDate } from "@/components/DeliveryDatePicker/DeliveryDatePicker";
@@ -19,6 +20,11 @@ import {
   Divider,
   Snackbar,
   Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from "@mui/material";
 import {
   ArrowBack,
@@ -37,13 +43,24 @@ function toDateOnlyString(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+// Parses a `YYYY-MM-DD` calendar day as a local date (new Date("YYYY-MM-DD")
+// would be read as UTC and could show the previous day).
+function parseDateOnly(value: string): Date {
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
 interface PedidoDetailClientProps {
   orderId: number;
 }
 
 export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps) {
   const router = useRouter();
-  const { execute, loading, data: order } = useApi<OrderFull>();
+  const { showError } = useNotification();
+  const [order, setOrder] = useState<OrderFull | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [acceptDialogOpen, setAcceptDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<OrderItemFull[]>([]);
   const [originalQuantities, setOriginalQuantities] = useState<Record<number, number>>({});
@@ -57,15 +74,27 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
     severity: "success" | "error";
   }>({ open: false, message: "", severity: "success" });
 
-  const loadOrder = async () => {
-    try {
-      await execute(() => ordersService.getOrderFull(orderId), {
-        showErrorNotification: true,
-      });
-    } catch {
-      setError("No se pudo cargar el pedido");
-    }
-  };
+  const allowed = order?.allowed_actions;
+  const canEditQuantities = allowed?.editQuantities ?? false;
+  const canEditDates = allowed?.editDeliveryDates ?? false;
+  const canAccept = allowed?.accept ?? false;
+
+  // `silent` refreshes in the background (focus) without replacing the screen
+  // by the loading state.
+  const loadOrder = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
+      try {
+        setOrder(await ordersService.getOrderFull(orderId));
+        setError(null);
+      } catch (err) {
+        if (!silent) setError(getErrorMessage(err) || "No se pudo cargar el pedido");
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [orderId]
+  );
 
   // Load order on mount
   useEffect(() => {
@@ -73,8 +102,7 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
       // eslint-disable-next-line
       loadOrder();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderId]);
+  }, [orderId, loadOrder]);
 
   // Load delivery methods on mount
   useEffect(() => {
@@ -84,23 +112,18 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
         // Fall back to empty array - component will use defaults
         setAvailableDeliveryMethods([]);
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fechas y métodos de entrega guardados en el pedido cargado
+  // Fechas y métodos de entrega guardados en cada línea del pedido cargado
   const originalDeliveries = useMemo(() => {
     const dates: Record<number, Date> = {};
     const methods: Record<number, number> = {};
-    order?.order_deliveries?.forEach((delivery) => {
-      delivery.order_delivery_items?.forEach((item) => {
-        dates[item.order_item_id] = new Date(delivery.delivery_date);
-        if (delivery.delivery_method_id) {
-          methods[item.order_item_id] = delivery.delivery_method_id;
-        }
-      });
+    order?.order_items?.forEach((item) => {
+      if (item.scheduled_delivery_date) dates[item.id] = parseDateOnly(item.scheduled_delivery_date);
+      if (item.delivery_method_id) methods[item.id] = item.delivery_method_id;
     });
     return { dates, methods };
-  }, [order?.order_deliveries]);
+  }, [order?.order_items]);
 
   // Sync items and delivery data when order data changes
   useEffect(() => {
@@ -111,7 +134,7 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
       order.order_items.forEach((i) => { orig[i.id] = i.requested_quantity; });
       setOriginalQuantities(orig);
     }
-    // Restore saved delivery dates and methods from order_deliveries
+    // Restore saved delivery dates and methods from the order lines
     if (order) {
       setDeliveryDates(originalDeliveries.dates);
       setDeliveryMethodIds(originalDeliveries.methods);
@@ -178,35 +201,107 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
     setItems((prev) =>
       prev.map((item) => {
         if (item.id !== itemId) return item;
-        const newQty = item.requested_quantity + delta;
-        if (delta > 0 && newQty > (originalQuantities[itemId] ?? item.requested_quantity)) {
-          return item;
-        }
-        return { ...item, requested_quantity: Math.max(0, newQty) };
+        const max = item.original_requested_quantity;
+        const min = item.delivered_quantity;
+        return {
+          ...item,
+          requested_quantity: Math.min(max, Math.max(min, item.requested_quantity + delta)),
+        };
       })
     );
   };
 
+  const hasItemDeliveryChange = (itemId: number): boolean => {
+    const current = deliveryDates[itemId];
+    const original = originalDeliveries.dates[itemId];
+    if (deliveryMethodIds[itemId] !== originalDeliveries.methods[itemId]) return true;
+    if (!current || !original) return current !== original;
+    return toDateOnlyString(current) !== toDateOnlyString(original);
+  };
+
   const handleUpdateData = async () => {
+    setSaving(true);
     try {
-      // Prepare items with delivery dates and methods
-      const updatedItems = items.map((item) => ({
-        itemId: item.id,
-        requestedQuantity: item.requested_quantity,
-        deliveryDate: deliveryDates[item.id]
-          ? toDateOnlyString(deliveryDates[item.id])
-          : undefined,
-        deliveryMethodId: deliveryMethodIds[item.id],
-      }));
+      // Solo viajan las líneas con cambios; la cantidad solo si el back aún la deja editar.
+      const updatedItems = items
+        .filter(
+          (item) =>
+            (canEditQuantities && item.requested_quantity !== originalQuantities[item.id]) ||
+            (canEditDates && hasItemDeliveryChange(item.id))
+        )
+        .map((item) => ({
+          itemId: item.id,
+          ...(canEditQuantities ? { requestedQuantity: item.requested_quantity } : {}),
+          ...(canEditDates && deliveryDates[item.id]
+            ? {
+                deliveryDate: toDateOnlyString(deliveryDates[item.id]),
+                deliveryMethodId: deliveryMethodIds[item.id],
+              }
+            : {}),
+        }));
 
-      await ordersService.updateOrder(orderId, { items: updatedItems });
-
-      // Reload order to get fresh data
-      await loadOrder();
-
+      setOrder(await ordersService.updateOrder(orderId, { items: updatedItems }));
       setSnackbar({ open: true, message: "Datos actualizados exitosamente", severity: "success" });
-    } catch {
-      setSnackbar({ open: true, message: "Error al actualizar los datos", severity: "error" });
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: getErrorMessage(err) || "Error al actualizar los datos",
+        severity: "error",
+      });
+      // Un 409 significa que el pedido cambió en Foly: se vuelve a leer su estado.
+      await loadOrder(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Aceptar exige al menos una línea con cantidad y fecha en cada línea con cantidad.
+  const acceptValidationError = useMemo((): string | null => {
+    if (items.every((item) => item.requested_quantity === 0)) {
+      return "Confirma al menos un artículo con cantidad mayor a 0.";
+    }
+    const missingDate = items.some(
+      (item) => item.requested_quantity > 0 && !deliveryDates[item.id]
+    );
+    return missingDate ? "Define la fecha de entrega de cada artículo con cantidad." : null;
+  }, [items, deliveryDates]);
+
+  const handleAcceptClick = () => {
+    if (acceptValidationError) {
+      showError(acceptValidationError);
+      return;
+    }
+    setAcceptDialogOpen(true);
+  };
+
+  const handleConfirmAccept = async () => {
+    setSaving(true);
+    try {
+      const updated = await ordersService.acceptOrder(orderId, {
+        items: items.map((item) => ({
+          itemId: item.id,
+          confirmedQuantity: item.requested_quantity,
+          ...(item.requested_quantity > 0 && deliveryDates[item.id]
+            ? {
+                deliveryDate: toDateOnlyString(deliveryDates[item.id]),
+                deliveryMethodId: deliveryMethodIds[item.id],
+              }
+            : {}),
+        })),
+      });
+      setOrder(updated);
+      setAcceptDialogOpen(false);
+      setSnackbar({ open: true, message: "Pedido aceptado", severity: "success" });
+    } catch (err) {
+      setAcceptDialogOpen(false);
+      setSnackbar({
+        open: true,
+        message: getErrorMessage(err) || "No se pudo aceptar el pedido",
+        severity: "error",
+      });
+      await loadOrder(true);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -217,6 +312,22 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
       setDeliveryMethodIds(originalDeliveries.methods);
     }
   };
+
+  // Volver a pedir los datos al recuperar el foco, salvo que haya cambios sin
+  // guardar que se perderían.
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === "visible" && !hasChanges && !saving && !acceptDialogOpen) {
+        loadOrder(true);
+      }
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [hasChanges, saving, acceptDialogOpen, loadOrder]);
 
   if (loading) {
     return (
@@ -269,10 +380,11 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
           </Box>
 
           <Box sx={{ display: "flex", gap: 1.5 }}>
+            {(canEditQuantities || canEditDates) && (
             <Button
               variant="outlined"
               onClick={handleDiscardChanges}
-              disabled={!hasChanges}
+              disabled={!hasChanges || saving}
               sx={{
                 borderColor: "#d0d5dd",
                 color: "#344054",
@@ -287,24 +399,47 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
             >
               Descartar cambios
             </Button>
-            <Button
-              variant="contained"
-              onClick={handleUpdateData}
-              disabled={!hasChanges}
-              sx={{
-                bgcolor: "#1570EF",
-                textTransform: "none",
-                fontWeight: 500,
-                fontSize: "0.875rem",
-                px: 2,
-                py: 0.75,
-                borderRadius: 1.5,
-                boxShadow: "none",
-                "&:hover": { bgcolor: "#1462d4", boxShadow: "none" },
-              }}
-            >
-              Actualizar datos
-            </Button>
+            )}
+            {(canEditQuantities || canEditDates) && (
+              <Button
+                variant="contained"
+                onClick={handleUpdateData}
+                disabled={!hasChanges || saving}
+                sx={{
+                  bgcolor: "#1570EF",
+                  textTransform: "none",
+                  fontWeight: 500,
+                  fontSize: "0.875rem",
+                  px: 2,
+                  py: 0.75,
+                  borderRadius: 1.5,
+                  boxShadow: "none",
+                  "&:hover": { bgcolor: "#1462d4", boxShadow: "none" },
+                }}
+              >
+                Actualizar datos
+              </Button>
+            )}
+            {canAccept && (
+              <Button
+                variant="contained"
+                onClick={handleAcceptClick}
+                disabled={saving}
+                sx={{
+                  bgcolor: "#039855",
+                  textTransform: "none",
+                  fontWeight: 500,
+                  fontSize: "0.875rem",
+                  px: 2,
+                  py: 0.75,
+                  borderRadius: 1.5,
+                  boxShadow: "none",
+                  "&:hover": { bgcolor: "#027a48", boxShadow: "none" },
+                }}
+              >
+                Aceptar pedido
+              </Button>
+            )}
           </Box>
         </Box>
 
@@ -376,13 +511,17 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
             </Paper>
 
             <Typography variant="body2" sx={{ mb: 2, color: "text.secondary", fontSize: "0.875rem" }}>
-              Define una fecha de entrega para los artículos solicitados
+              {canAccept
+                ? "Confirma la cantidad y define una fecha de entrega para cada artículo antes de aceptar el pedido"
+                : canEditDates
+                  ? "Puedes actualizar la fecha de entrega de los artículos pendientes. Las cantidades ya no se pueden cambiar; para ajustes, contacta a Compras de Foly."
+                  : "Este pedido ya no admite cambios."}
             </Typography>
             <Paper elevation={0} sx={{ overflow: "hidden", border: "1px solid #e4e7ec", borderRadius: 2 }}>
               <Box
                 sx={{
                   display: "grid",
-                  gridTemplateColumns: "2fr 1.5fr 1fr 120px",
+                  gridTemplateColumns: "2fr 1.4fr 0.8fr 0.8fr 0.9fr 130px",
                   gap: 2,
                   px: 3,
                   py: 1.5,
@@ -392,15 +531,29 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
               >
                 <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8125rem" }}>Nombre</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8125rem" }}>Fecha de entrega</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", fontSize: "0.8125rem" }}>Recibido</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", fontSize: "0.8125rem" }}>Pendiente</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ textAlign: "right", fontSize: "0.8125rem" }}>Costo unitario</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", fontSize: "0.8125rem" }}>Pedido</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", fontSize: "0.8125rem" }}>Solicitado</Typography>
               </Box>
-              {items.map((item) => (
+              {items.map((item) => {
+                const pending = Math.max(0, item.requested_quantity - item.delivered_quantity);
+                const foliPidio = item.original_requested_quantity;
+                const dateLabel = deliveryDates[item.id]
+                  ? `${formatShortDate(deliveryDates[item.id])}${
+                      deliveryMethodIds[item.id]
+                        ? ` (${availableDeliveryMethods.find((m) => m.id === deliveryMethodIds[item.id])?.name || "sin método"})`
+                        : ""
+                    }`
+                  : canEditDates
+                    ? "Seleccionar"
+                    : "Sin fecha";
+                return (
                 <Box
                   key={item.id}
                   sx={{
                     display: "grid",
-                    gridTemplateColumns: "2fr 1.5fr 1fr 120px",
+                    gridTemplateColumns: "2fr 1.4fr 0.8fr 0.8fr 0.9fr 130px",
                     gap: 2,
                     px: 3,
                     py: 1.75,
@@ -418,39 +571,63 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
                       {item.product.short_name}
                     </Typography>
                   </Box>
-                  <Box
-                    onClick={() => setPickerItemId(item.id)}
-                    sx={{
-                      display: "flex", alignItems: "center", gap: 1,
-                      px: 1.5, py: 0.75,
-                      border: `1px solid ${deliveryDates[item.id] ? "#1570EF" : "#d0d5dd"}`,
-                      borderRadius: 1.5, bgcolor: "#ffffff", cursor: "pointer",
-                      "&:hover": { borderColor: "#98a2b3" },
-                    }}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "0.875rem", color: deliveryDates[item.id] ? "#1570EF" : "#98a2b3", flex: 1 }}>
-                      {deliveryDates[item.id] ? `${formatShortDate(deliveryDates[item.id])} (${availableDeliveryMethods.find(m => m.id === deliveryMethodIds[item.id])?.name || "sin método"})` : "Seleccionar"}
+                  {canEditDates ? (
+                    <Box
+                      onClick={() => setPickerItemId(item.id)}
+                      sx={{
+                        display: "flex", alignItems: "center", gap: 1,
+                        px: 1.5, py: 0.75,
+                        border: `1px solid ${deliveryDates[item.id] ? "#1570EF" : "#d0d5dd"}`,
+                        borderRadius: 1.5, bgcolor: "#ffffff", cursor: "pointer",
+                        "&:hover": { borderColor: "#98a2b3" },
+                      }}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "0.875rem", color: deliveryDates[item.id] ? "#1570EF" : "#98a2b3", flex: 1 }}>
+                        {dateLabel}
+                      </Typography>
+                      <CalendarToday sx={{ fontSize: 16, color: deliveryDates[item.id] ? "#1570EF" : "#667085", flexShrink: 0 }} />
+                    </Box>
+                  ) : (
+                    <Typography variant="body2" sx={{ fontSize: "0.875rem", color: "#101828" }}>
+                      {dateLabel}
                     </Typography>
-                    <CalendarToday sx={{ fontSize: 16, color: deliveryDates[item.id] ? "#1570EF" : "#667085", flexShrink: 0 }} />
-                  </Box>
+                  )}
+                  <Typography variant="body2" sx={{ textAlign: "center", fontSize: "0.875rem", color: "#101828" }}>
+                    {item.delivered_quantity}
+                  </Typography>
+                  <Typography variant="body2" sx={{ textAlign: "center", fontSize: "0.875rem", color: "#101828" }}>
+                    {pending}
+                  </Typography>
                   <Typography variant="body2" sx={{ textAlign: "right", fontWeight: 500, fontSize: "0.875rem", color: "#101828" }}>
                     {formatCurrency(item.unit_price, item.currency)}
                   </Typography>
-                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
-                    <IconButton size="small" onClick={() => updateItemQuantity(item.id, -1)} disabled={item.requested_quantity <= 0}
-                      sx={{ width: 24, height: 24, p: 0, color: "#344054", "&:hover": { bgcolor: "transparent" }, "&.Mui-disabled": { color: "#d0d5dd" } }}>
-                      <Typography sx={{ fontSize: "1.1rem", fontWeight: 400, lineHeight: 1 }}>—</Typography>
-                    </IconButton>
-                    <Typography variant="body2" sx={{ minWidth: 24, textAlign: "center", fontWeight: 700, fontSize: "0.875rem", color: "#101828" }}>
-                      {item.requested_quantity}
+                  <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.25 }}>
+                    {canEditQuantities ? (
+                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+                        <IconButton size="small" onClick={() => updateItemQuantity(item.id, -1)} disabled={item.requested_quantity <= item.delivered_quantity}
+                          sx={{ width: 24, height: 24, p: 0, color: "#344054", "&:hover": { bgcolor: "transparent" }, "&.Mui-disabled": { color: "#d0d5dd" } }}>
+                          <Typography sx={{ fontSize: "1.1rem", fontWeight: 400, lineHeight: 1 }}>—</Typography>
+                        </IconButton>
+                        <Typography variant="body2" sx={{ minWidth: 24, textAlign: "center", fontWeight: 700, fontSize: "0.875rem", color: "#101828" }}>
+                          {item.requested_quantity}
+                        </Typography>
+                        <IconButton size="small" onClick={() => updateItemQuantity(item.id, 1)} disabled={item.requested_quantity >= foliPidio}
+                          sx={{ width: 24, height: 24, p: 0, color: "#344054", "&:hover": { bgcolor: "transparent" }, "&.Mui-disabled": { color: "#d0d5dd" } }}>
+                          <Typography sx={{ fontSize: "1.1rem", fontWeight: 400, lineHeight: 1 }}>+</Typography>
+                        </IconButton>
+                      </Box>
+                    ) : (
+                      <Typography variant="body2" sx={{ textAlign: "center", fontWeight: 700, fontSize: "0.875rem", color: "#101828" }}>
+                        {item.requested_quantity}
+                      </Typography>
+                    )}
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
+                      Foly pidió {foliPidio}
                     </Typography>
-                    <IconButton size="small" onClick={() => updateItemQuantity(item.id, 1)} disabled={item.requested_quantity >= (originalQuantities[item.id] ?? item.requested_quantity)}
-                      sx={{ width: 24, height: 24, p: 0, color: "#344054", "&:hover": { bgcolor: "transparent" }, "&.Mui-disabled": { color: "#d0d5dd" } }}>
-                      <Typography sx={{ fontSize: "1.1rem", fontWeight: 400, lineHeight: 1 }}>+</Typography>
-                    </IconButton>
                   </Box>
                 </Box>
-              ))}
+                );
+              })}
             </Paper>
           </Grid>
 
@@ -526,6 +703,25 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
           </Grid>
         </Grid>
       </Box>
+
+      <Dialog open={acceptDialogOpen} onClose={() => !saving && setAcceptDialogOpen(false)}>
+        <DialogTitle>Aceptar pedido {order.folio}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Al aceptar el pedido se confirman las cantidades y las fechas de entrega. Después de
+            aceptarlo ya no podrás cambiar las cantidades ni el costo; solo podrás actualizar las
+            fechas de entrega. Cualquier ajuste posterior lo realiza Compras de Foly.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAcceptDialogOpen(false)} disabled={saving} sx={{ textTransform: "none" }}>
+            Cancelar
+          </Button>
+          <Button onClick={handleConfirmAccept} variant="contained" disabled={saving} sx={{ textTransform: "none" }}>
+            Aceptar pedido
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar
         open={snackbar.open}
