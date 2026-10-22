@@ -18,7 +18,8 @@ export type SupplierOrderStatus =
   | "shipped"
   | "partially_delivered"
   | "delivered"
-  | "cancelled";
+  | "cancelled"
+  | "closed";
 
 /** Estado de pago del pedido, derivado de sus facturas asociadas. */
 export type SupplierDashboardPagoEstatus =

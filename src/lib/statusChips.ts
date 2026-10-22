@@ -12,15 +12,16 @@ import type {
 // que el API no manda, ni quedarse corta cuando el enum crece.
 // ---------------------------------------------------------------------------
 
-/** Los 7 valores de `OrderStatus` (`schema.prisma`), sin huecos. */
+/** Los 8 valores de `OrderStatus` (`schema.prisma`), sin huecos. */
 export const ORDER_STATUS_LABELS: Record<SupplierOrderStatus, string> = {
   pending: "Pendiente",
   scheduled: "Programado",
   in_progress: "En proceso",
   shipped: "Enviado",
-  partially_delivered: "Entrega parcial",
+  partially_delivered: "Parcialmente entregado",
   delivered: "Entregado",
   cancelled: "Cancelado",
+  closed: "Cerrado",
 };
 
 export const ORDER_STATUS_CHIP_VARIANTS: Record<SupplierOrderStatus, StatusChipVariant> = {
@@ -31,6 +32,7 @@ export const ORDER_STATUS_CHIP_VARIANTS: Record<SupplierOrderStatus, StatusChipV
   partially_delivered: "warning",
   delivered: "success",
   cancelled: "error",
+  closed: "disabled",
 };
 
 /** Estado de pago del pedido, derivado de sus facturas asociadas. */

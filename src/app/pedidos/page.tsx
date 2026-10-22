@@ -34,14 +34,16 @@ type Pedido = {
 const STATUS_TABS: TabOption[] = [
   { label: "Todos", value: "all" },
   { label: "Pendientes", value: "pending" },
+  { label: "Parcialmente entregados", value: "partially_delivered" },
   { label: "Entregados", value: "delivered" },
+  { label: "Cerrados", value: "closed" },
 ];
 
 const SEARCH_DEBOUNCE_MS = 400;
 
 /**
  * Valor de `status` que se manda al back según la pestaña. "Todos" no filtra;
- * "pending" es el valor especial del back (todo salvo entregado y cancelado).
+ * "pending" es el valor especial del back (todo pedido abierto: ni entregado, cancelado ni cerrado).
  */
 const tabToStatus = (tab: string): string | undefined => (tab === "all" ? undefined : tab);
 
