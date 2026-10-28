@@ -7,7 +7,8 @@ import { useNotification } from "@/contexts/NotificationContext";
 import { getErrorMessage } from "@/lib/api/client";
 import { ordersService, OrderFull, OrderItemFull, DeliveryMethod } from "@/services/orders.service";
 import { formatCurrency, calculateOrderTotals, resolveExchangeRate } from "@/lib/money";
-import { DeliveryDatePicker, formatShortDate } from "@/components/DeliveryDatePicker/DeliveryDatePicker";
+import { DeliveryDatePicker } from "@/components/DeliveryDatePicker/DeliveryDatePicker";
+import { PedidoItemsTable, usePedidoItemsColumns } from "./PedidoItemsTable";
 import { ORDER_STATUS_LABELS } from "@/lib/statusChips";
 import type { SupplierOrderStatus } from "@/services/dashboard.service";
 import {
@@ -29,8 +30,6 @@ import {
 import {
   ArrowBack,
   ArrowForward,
-  CalendarToday,
-  Inventory,
 } from "@mui/icons-material";
 
 // Formats using local calendar fields (not toISOString, which converts to
@@ -57,6 +56,7 @@ interface PedidoDetailClientProps {
 export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps) {
   const router = useRouter();
   const { showError } = useNotification();
+  const columns = usePedidoItemsColumns();
   const [order, setOrder] = useState<OrderFull | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -517,118 +517,27 @@ export default function PedidoDetailClient({ orderId }: PedidoDetailClientProps)
                   ? "Puedes actualizar la fecha de entrega de los artículos pendientes. Las cantidades ya no se pueden cambiar; para ajustes, contacta a Compras de Foly."
                   : "Este pedido ya no admite cambios."}
             </Typography>
-            <Paper elevation={0} sx={{ overflow: "hidden", border: "1px solid #e4e7ec", borderRadius: 2 }}>
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: "2fr 1.4fr 0.8fr 0.8fr 0.9fr 130px",
-                  gap: 2,
-                  px: 3,
-                  py: 1.5,
-                  bgcolor: "#ffffff",
-                  borderBottom: "1px solid #e4e7ec",
-                }}
+            <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1 }}>
+              <Button
+                size="small"
+                onClick={columns.resetAll}
+                disabled={columns.isDefault}
+                sx={{ textTransform: "none", fontSize: "0.8125rem" }}
               >
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8125rem" }}>Nombre</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8125rem" }}>Fecha de entrega</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", fontSize: "0.8125rem" }}>Recibido</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", fontSize: "0.8125rem" }}>Pendiente</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ textAlign: "right", fontSize: "0.8125rem" }}>Costo unitario</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", fontSize: "0.8125rem" }}>Solicitado</Typography>
-              </Box>
-              {items.map((item) => {
-                const pending = Math.max(0, item.requested_quantity - item.delivered_quantity);
-                const foliPidio = item.original_requested_quantity;
-                const dateLabel = deliveryDates[item.id]
-                  ? `${formatShortDate(deliveryDates[item.id])}${
-                      deliveryMethodIds[item.id]
-                        ? ` (${availableDeliveryMethods.find((m) => m.id === deliveryMethodIds[item.id])?.name || "sin método"})`
-                        : ""
-                    }`
-                  : canEditDates
-                    ? "Seleccionar"
-                    : "Sin fecha";
-                return (
-                <Box
-                  key={item.id}
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: "2fr 1.4fr 0.8fr 0.8fr 0.9fr 130px",
-                    gap: 2,
-                    px: 3,
-                    py: 1.75,
-                    alignItems: "center",
-                    borderBottom: "1px solid #f2f4f7",
-                    bgcolor: "white",
-                    "&:last-child": { borderBottom: "none" },
-                  }}
-                >
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                    <Box sx={{ width: 36, height: 36, bgcolor: "#f2f4f7", borderRadius: 1.5, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <Inventory sx={{ fontSize: 18, color: "#98a2b3" }} />
-                    </Box>
-                    <Typography variant="body2" noWrap title={item.product.short_name} sx={{ fontSize: "0.875rem", color: "#101828" }}>
-                      {item.product.short_name}
-                    </Typography>
-                  </Box>
-                  {canEditDates ? (
-                    <Box
-                      onClick={() => setPickerItemId(item.id)}
-                      sx={{
-                        display: "flex", alignItems: "center", gap: 1,
-                        px: 1.5, py: 0.75,
-                        border: `1px solid ${deliveryDates[item.id] ? "#1570EF" : "#d0d5dd"}`,
-                        borderRadius: 1.5, bgcolor: "#ffffff", cursor: "pointer",
-                        "&:hover": { borderColor: "#98a2b3" },
-                      }}
-                    >
-                      <Typography variant="body2" sx={{ fontSize: "0.875rem", color: deliveryDates[item.id] ? "#1570EF" : "#98a2b3", flex: 1 }}>
-                        {dateLabel}
-                      </Typography>
-                      <CalendarToday sx={{ fontSize: 16, color: deliveryDates[item.id] ? "#1570EF" : "#667085", flexShrink: 0 }} />
-                    </Box>
-                  ) : (
-                    <Typography variant="body2" sx={{ fontSize: "0.875rem", color: "#101828" }}>
-                      {dateLabel}
-                    </Typography>
-                  )}
-                  <Typography variant="body2" sx={{ textAlign: "center", fontSize: "0.875rem", color: "#101828" }}>
-                    {item.delivered_quantity}
-                  </Typography>
-                  <Typography variant="body2" sx={{ textAlign: "center", fontSize: "0.875rem", color: "#101828" }}>
-                    {pending}
-                  </Typography>
-                  <Typography variant="body2" sx={{ textAlign: "right", fontWeight: 500, fontSize: "0.875rem", color: "#101828" }}>
-                    {formatCurrency(item.unit_price, item.currency)}
-                  </Typography>
-                  <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.25 }}>
-                    {canEditQuantities ? (
-                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
-                        <IconButton size="small" onClick={() => updateItemQuantity(item.id, -1)} disabled={item.requested_quantity <= item.delivered_quantity}
-                          sx={{ width: 24, height: 24, p: 0, color: "#344054", "&:hover": { bgcolor: "transparent" }, "&.Mui-disabled": { color: "#d0d5dd" } }}>
-                          <Typography sx={{ fontSize: "1.1rem", fontWeight: 400, lineHeight: 1 }}>—</Typography>
-                        </IconButton>
-                        <Typography variant="body2" sx={{ minWidth: 24, textAlign: "center", fontWeight: 700, fontSize: "0.875rem", color: "#101828" }}>
-                          {item.requested_quantity}
-                        </Typography>
-                        <IconButton size="small" onClick={() => updateItemQuantity(item.id, 1)} disabled={item.requested_quantity >= foliPidio}
-                          sx={{ width: 24, height: 24, p: 0, color: "#344054", "&:hover": { bgcolor: "transparent" }, "&.Mui-disabled": { color: "#d0d5dd" } }}>
-                          <Typography sx={{ fontSize: "1.1rem", fontWeight: 400, lineHeight: 1 }}>+</Typography>
-                        </IconButton>
-                      </Box>
-                    ) : (
-                      <Typography variant="body2" sx={{ textAlign: "center", fontWeight: 700, fontSize: "0.875rem", color: "#101828" }}>
-                        {item.requested_quantity}
-                      </Typography>
-                    )}
-                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
-                      Foly pidió {foliPidio}
-                    </Typography>
-                  </Box>
-                </Box>
-                );
-              })}
-            </Paper>
+                Restablecer columnas
+              </Button>
+            </Box>
+            <PedidoItemsTable
+              items={items}
+              deliveryDates={deliveryDates}
+              deliveryMethodIds={deliveryMethodIds}
+              deliveryMethods={availableDeliveryMethods}
+              canEditDates={canEditDates}
+              canEditQuantities={canEditQuantities}
+              columns={columns}
+              onOpenPicker={setPickerItemId}
+              onChangeQuantity={updateItemQuantity}
+            />
           </Grid>
 
           {/* Delivery Date Picker Modal */}
