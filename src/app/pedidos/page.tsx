@@ -43,7 +43,8 @@ const SEARCH_DEBOUNCE_MS = 400;
 
 /**
  * Valor de `status` que se manda al back según la pestaña. "Todos" no filtra;
- * "pending" es el valor especial del back (todo pedido abierto: ni entregado, cancelado ni cerrado).
+ * el resto de pestañas manda su valor tal cual y el back filtra por igualdad exacta
+ * (p. ej. "pending" trae solo pedidos con status 'pending').
  */
 const tabToStatus = (tab: string): string | undefined => (tab === "all" ? undefined : tab);
 
